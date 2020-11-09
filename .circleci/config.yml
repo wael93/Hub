@@ -2,6 +2,7 @@ version: 2.1
 
 orbs:
   slack: circleci/slack@3.4.2
+  codecov: codecov/codecov@1.1.1
 
 workflows:
   test:
@@ -18,7 +19,9 @@ workflows:
             branches:
               ignore: /.*/
       - deploy:
-          context: pypi
+          context: 
+            - pypi
+            - snark-docker
           requires:
             - test
           filters:
@@ -45,10 +48,17 @@ jobs:
             pip install -r requirements.txt
             pip install -e .
       - run:
+          name: "Checking code style"
+          command: |
+            pip install flake8
+            flake8 . --count --exit-zero --max-complexity=10 --statistics
+      - run:
           name: "Running tests"
           command: |
             export GOOGLE_APPLICATION_CREDENTIALS=/home/circleci/.secrets/gcs.json
-            pytest ./
+            pytest --cov-report=xml --cov=./
+      - codecov/upload:
+          file: coverage.xml
       - store_test_results:
           path: test-reports
       - store_artifacts:
@@ -60,6 +70,8 @@ jobs:
   deploy:
     docker:
       - image: circleci/python:3.8
+    environment:
+      IMAGE_NAME: snarkai/hub
     steps:
       - checkout
       - run:
@@ -81,6 +93,18 @@ jobs:
           name: "Upload dist to PyPi"
           command: |
             twine upload dist/*
+      - run:
+          name: "Build Docker Hub Image"
+          command: |
+            docker build -t $IMAGE_NAME:latest .
+      - run:
+          name: "Deploy to Docker Hub"
+          command: |
+            echo "$DOCKER_HUB_PASSWORD" | docker login -u "$DOCKER_HUB_USERNAME" --password-stdin
+            IMAGE_TAG=${CIRCLE_TAG}
+            docker tag $IMAGE_NAME:latest $IMAGE_NAME:$IMAGE_TAG
+            docker push $IMAGE_NAME:latest
+            docker push $IMAGE_NAME:$IMAGE_TAG
       - slack/status:
           fail_only: true
           webhook: $SLACK_WEBHOOK

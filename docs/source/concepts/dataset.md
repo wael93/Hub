@@ -20,6 +20,7 @@ dataset.store("username/namespace")
 ## Load
 
 To load a dataset from a central repository
+
 ```python
 from hub import dataset
 
@@ -29,6 +30,7 @@ ds = dataset.load("mnist/mnist")
 ## Combine
 
 You could combine datasets or concat them.
+
 ```python
 from hub import dataset
 
@@ -41,12 +43,46 @@ dataset.concat(ds1, ds2)
 dataset.combine(ds1, ds2)
 ```
 
+## Get text labels
+To get text labels from a dataset  
+
+###### Pytorch
+
+```python
+from hub import dataset
+import torch
+
+ds = dataset.load("mnist/fashion-mnist")
+
+ds = ds.to_pytorch()
+
+data_loader = torch.utils.data.DataLoader(ds, batch_size=BATCH_SIZE, collate_fn=ds.collate_fn)
+
+for batch in data_loader:
+    tl = dataset.get_text(batch['named_label'])
+```
+    
+###### Tensorflow  
+
+```python
+from hub import dataset
+import tensorflow as tf
+
+ds = dataset.load("mnist/fashion-mnist")
+
+ds = ds.to_tensorflow()
+
+dataset = ds.batch(BATCH_SIZE)
+
+for batch in dataset:
+    tl = dataset.get_text(batch['named_label'])
+```
 
 ## How to Upload a Dataset
 
-For small datasets that would fit into your RAM you can directly upload by converting a numpy array into hub tensor. For complete example please check [Uploading MNIST](https://github.com/activeloopai/Hub/blob/master/examples/mnist.py) and [Uploading CIFAR](https://github.com/activeloopai/Hub/blob/master/examples/cifar100.py)
+For small datasets that would fit into your RAM you can directly upload by converting a numpy array into hub tensor. For complete example please check [Uploading MNIST](https://github.com/activeloopai/Hub/blob/master/examples/mnist/upload.py) and [Uploading CIFAR](https://github.com/activeloopai/Hub/blob/master/examples/cifar/upload_cifar10.py)
 
-For larger datasets you would need to define a dataset generator and apply the transformation iteratively. Please see an example below [Uploading COCO](https://github.com/activeloopai/Hub/blob/master/examples/coco2017.py).
+For larger datasets you would need to define a dataset generator and apply the transformation iteratively. Please see an example below [Uploading COCO](https://github.com/activeloopai/Hub/blob/master/examples/coco/upload_coco2017.py).
 Please pay careful attention to `meta(...)` function where you describe each tensor properties. Please pay careful attention providing full meta description including shape, dtype, dtag, chunk_shape etc.
 
 ### Dtag
@@ -119,8 +155,8 @@ If you spot any trouble or have any question, please open a github issue.
 
 
 ## API
+
 ```eval_rst
 .. autoclass:: hub.dataset.Dataset
    :members:
 ```
-

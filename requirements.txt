@@ -13,5 +13,6 @@ lmdb==1.0.0
 
 #dev
 pytest
+pytest-cov
 flake8
 black
