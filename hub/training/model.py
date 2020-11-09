@@ -69,6 +69,11 @@ class Model:
             with fs.open(model_path, 'rb') as opened_file:
                 f = h5py.File(opened_file, 'r')
                 self._model = tf.keras.models.load_model(f)
+        elif model_path.endswith('.tf'):
+            if 'tensorflow' not in sys.modules:
+                raise ModuleNotFoundError("Unable to load a model. \
+                                        Module 'tensorflow' is not installed")
+            self._model = tf.keras.models.load_model(model_path)
         else:
             raise ValueError("Not supported model type")  
 
@@ -102,10 +107,14 @@ class Model:
                 torch.save(self._model, opened_file)
         elif ("TENSORFLOW_MODEL_CLASSES" in globals() 
             and issubclass(model_class, TENSORFLOW_MODEL_CLASSES)):
-            model_full_path = os.path.join(url, model_class.__name__ + '.h5')
-            io_h5 = io.BytesIO()
-            self._model.save(io_h5)
-            with fs.open(model_full_path, 'wb') as opened_file: 
-                opened_file.write(io_h5.getbuffer()) 
+            try:
+                model_full_path = os.path.join(url, model_class.__name__ + '.h5')
+                io_h5 = io.BytesIO()
+                self._model.save(io_h5)
+                with fs.open(model_full_path, 'wb') as opened_file: 
+                    opened_file.write(io_h5.getbuffer()) 
+            except TypeError:
+                model_full_path = os.path.join(url, model_class.__name__ + '.tf')
+                self._model.save(model_full_path)
         else:
             raise ValueError(f"Unable to store a model of type {type(self._model)}")
