@@ -1,3 +1,5 @@
+from hub.marray.array import HubArray
+from hub.backend.storage import S3
 import argparse
 import os
 import random
@@ -27,9 +29,24 @@ import torch
 import torch.utils.data as data
 import hub
 
-h_num_process = 8
-h_num_threads = 1
-chunk_size = 20
+h_num_process = 4
+h_num_threads = 2
+chunk_size = 20  # choose form 20 or 80
+
+# Turn off to maximize training, but not useful for training
+# it calls get batch on every iteration though batch has been already downloaded
+maximize_network_utilization = True
+skip_gpu_compute = True
+
+path = f's3://snark-archive/snark-hub-main/imagenet/benchmark2/{str(chunk_size)}'
+
+
+if True:
+    storage = S3(bucket='snark-archive')
+    x = HubArray(key=path, public=False, storage=storage, shape=(
+        2000, 256, 256, 3), chunk_shape=(chunk_size, 256, 256, 3), dtype="uint8")
+    x[:1000] = np.random.randint(256, size=(1000, 256, 256, 3), dtype='uint8')
+
 
 class StandardTransform(object):
     def __init__(self, transform=None, target_transform=None):
@@ -107,6 +124,7 @@ class VisionDataset(data.Dataset):
     def extra_repr(self):
         return ""
 
+
 class FakeData(VisionDataset):
     """A fake dataset that returns randomly generated images and returns them as PIL images
     Args:
@@ -133,10 +151,11 @@ class FakeData(VisionDataset):
         self.batch = None
         self.indexbeta = 0
         self.batch_size = chunk_size*h_num_threads
-        #self.avgTime = AverageMeter('Time', ':6.3f')
-        #self.progress = ProgressMeter(1,
-        #[self.avgTime],
-        #prefix="Epoch: ")
+
+        self.avgTime = AverageMeter('Time', ':6.3f')
+        self.progress = ProgressMeter(1,
+                                      [self.avgTime],
+                                      prefix="Epoch: ")
 
     def __getitem__(self, index):
         """
@@ -145,58 +164,67 @@ class FakeData(VisionDataset):
         Returns:
             tuple: (image, target) where target is class_index of the target class.
         """
+        # t00 = time.time()
         # create random image that is consistent with the index id
-        #if index >= len(self):
+        # if index >= len(self):
         #    raise IndexError("{} index out of range".format(self.__class__.__name__))
         #rng_state = torch.get_rng_state()
         #torch.manual_seed(index + self.random_offset)
         #img = torch.randn(*self.image_size)
-        target = torch.randint(0, self.num_classes, size=(1,), dtype=torch.long)[0]
-        #torch.set_rng_state(rng_state)
+        target = torch.randint(0, self.num_classes,
+                               size=(1,), dtype=torch.long)[0]
+        # torch.set_rng_state(rng_state)
 
         # convert to PIL Image
-        #from PIL import Image
+        # from PIL import Image
 
-        
-        #img = np.array(img)
-        #t1 = time.time()
+        # img = np.array(img)
+        # t1 = time.time()
         if not self.x:
-            self.x = hub.load('imagenet/benchmark:{}'.format(str(chunk_size)))
-            #print('loaded {}s'.format(time.time()-t1))
+            storage = S3(bucket='snark-archive')
+            self.x = HubArray(key=path, public=True,
+                              storage=storage, parallel=h_num_threads)
 
+            # print('loaded {}s'.format(time.time()-t1))
+        # print(self.batch_size)
+        if maximize_network_utilization:
+            self.batch = self.x[:self.batch_size]
+        # print(self.batch.mean(), self.batch.max(), self.batch.min())
         if self.batch is None or self.indexbeta == self.batch_size:
             self.indexbeta = 0
-            #t3 = time.time()
+           # t3 = time.time()
+
             self.batch = self.x[:self.batch_size]
             #t4 = time.time()
-            #self.avgTime.update(self.batch.shape[0]/(t4-t3))
-            #if index % 10 == 0:
-            #    print(self.batch.shape)
-            #    self.progress.display(index)
-            #   print('{} img/sec'.format(self.batch.shape[0]/(t4-t3)))
-        
-        #if i % args.print_freq == 0:
-            
+            # print('Downloading', t4-t3, self.batch.shape)
+            # self.avgTime.update(self.batch.shape[0]/(t4-t3))
+            if index % 10 == 0 and False:
+                print(self.batch.shape)
+                self.progress.display(index)
+                print('{} img/sec'.format(self.batch.shape[0]/(t4-t3)))
+
+        # if i % args.print_freq == 0:
+
         img = self.batch[self.indexbeta]
         self.indexbeta += 1
 
         img = transforms.ToPILImage()(img)
-        
+
         if self.transform is not None:
             img = self.transform(img)
         if self.target_transform is not None:
             target = self.target_transform(target)
-
+        # t11 = time.time()
+        # print('each iteration takes: ', t11-t00)
         return img, target
 
     def __len__(self):
         return self.size
 
 
-
 model_names = sorted(name for name in models.__dict__
-    if name.islower() and not name.startswith("__")
-    and callable(models.__dict__[name]))
+                     if name.islower() and not name.startswith("__")
+                     and callable(models.__dict__[name]))
 
 parser = argparse.ArgumentParser(description='PyTorch ImageNet Training')
 parser.add_argument('data', metavar='DIR',
@@ -204,8 +232,8 @@ parser.add_argument('data', metavar='DIR',
 parser.add_argument('-a', '--arch', metavar='ARCH', default='resnet18',
                     choices=model_names,
                     help='model architecture: ' +
-                        ' | '.join(model_names) +
-                        ' (default: resnet18)')
+                    ' | '.join(model_names) +
+                    ' (default: resnet18)')
 parser.add_argument('-j', '--workers', default=h_num_process, type=int, metavar='N',
                     help='number of data loading workers (default: 4)')
 parser.add_argument('--epochs', default=90, type=int, metavar='N',
@@ -282,7 +310,8 @@ def main():
         args.world_size = ngpus_per_node * args.world_size
         # Use torch.multiprocessing.spawn to launch distributed processes: the
         # main_worker process function
-        mp.spawn(main_worker, nprocs=ngpus_per_node, args=(ngpus_per_node, args))
+        mp.spawn(main_worker, nprocs=ngpus_per_node,
+                 args=(ngpus_per_node, args))
     else:
         # Simply call main_worker function
         main_worker(args.gpu, ngpus_per_node, args)
@@ -323,8 +352,10 @@ def main_worker(gpu, ngpus_per_node, args):
             # DistributedDataParallel, we need to divide the batch size
             # ourselves based on the total number of GPUs we have
             args.batch_size = int(args.batch_size / ngpus_per_node)
-            args.workers = int((args.workers + ngpus_per_node - 1) / ngpus_per_node)
-            model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.gpu])
+            args.workers = int(
+                (args.workers + ngpus_per_node - 1) / ngpus_per_node)
+            model = torch.nn.parallel.DistributedDataParallel(
+                model, device_ids=[args.gpu])
         else:
             model.cuda()
             # DistributedDataParallel will divide and allocate batch_size to all
@@ -368,13 +399,13 @@ def main_worker(gpu, ngpus_per_node, args):
     cudnn.benchmark = True
 
     # Data loading code
-    traindir = os.path.join(args.data, 'train')
-    valdir = os.path.join(args.data, 'val')
+    #traindir = os.path.join(args.data, 'train')
+    #valdir = os.path.join(args.data, 'val')
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
 
     train_dataset = FakeData(
-        size=256*100, image_size=(3,224,224), num_classes=10,
+        size=256*100, image_size=(3, 224, 224), num_classes=10,
         transform=transforms.Compose([
             transforms.RandomResizedCrop(224),
             transforms.RandomHorizontalFlip(),
@@ -383,23 +414,27 @@ def main_worker(gpu, ngpus_per_node, args):
         ]))
 
     if args.distributed:
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)
+        train_sampler = torch.utils.data.distributed.DistributedSampler(
+            train_dataset)
     else:
         train_sampler = None
-    
+
     train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=args.batch_size, shuffle=(train_sampler is None),
+        train_dataset, batch_size=args.batch_size, shuffle=(
+            train_sampler is None),
         num_workers=args.workers, pin_memory=True, sampler=train_sampler)
 
-    val_loader = torch.utils.data.DataLoader(
-        datasets.ImageFolder(valdir, transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            normalize,
-        ])),
-        batch_size=args.batch_size, shuffle=False,
-        num_workers=args.workers, pin_memory=True)
+    # val_loader = torch.utils.data.DataLoader(
+    #    datasets.ImageFolder(valdir, transforms.Compose([
+    #        transforms.Resize(256),
+    #        transforms.CenterCrop(224),
+    #        transforms.ToTensor(),
+    #        normalize,
+    #    ])),
+    #    batch_size=args.batch_size, shuffle=False,
+    #    num_workers=args.workers, pin_memory=True)
+
+    val_loader = train_loader
 
     if args.evaluate:
         validate(val_loader, model, criterion, args)
@@ -421,13 +456,13 @@ def main_worker(gpu, ngpus_per_node, args):
         best_acc1 = max(acc1, best_acc1)
 
         if not args.multiprocessing_distributed or (args.multiprocessing_distributed
-                and args.rank % ngpus_per_node == 0):
+                                                    and args.rank % ngpus_per_node == 0):
             save_checkpoint({
                 'epoch': epoch + 1,
                 'arch': args.arch,
                 'state_dict': model.state_dict(),
                 'best_acc1': best_acc1,
-                'optimizer' : optimizer.state_dict(),
+                'optimizer': optimizer.state_dict(),
             }, is_best)
 
 
@@ -447,9 +482,11 @@ def train(train_loader, model, criterion, optimizer, epoch, args):
 
     end = time.time()
     for i, (images, target) in enumerate(train_loader):
+        if skip_gpu_compute:
+            continue
         # measure data loading time
         data_time.update(time.time() - end)
-        
+
         if args.gpu is not None:
             images = images.cuda(args.gpu, non_blocking=True)
         target = target.cuda(args.gpu, non_blocking=True)
@@ -529,6 +566,7 @@ def save_checkpoint(state, is_best, filename='checkpoint.pth.tar'):
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""
+
     def __init__(self, name, fmt=':f'):
         self.name = name
         self.fmt = fmt

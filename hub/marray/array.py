@@ -5,10 +5,11 @@ from .bbox import Bbox, chunknames, shade, Vec, generate_chunks
 from hub.exceptions import IncompatibleBroadcasting, IncompatibleTypes, IncompatibleShapes, NotFound
 from .meta import MetaObject
 
+
 class HubArray(MetaObject):
     def __init__(self, shape=None, chunk_shape=None, dtype=None, key=None, protocol='s3', parallel=True, order='F', public=False, storage=None):
         super().__init__(key=key, storage=storage, create=shape)
-        
+
         self.info['shape'] = shape
         self.info['chunk_shape'] = chunk_shape
         self.info['dtype'] = dtype
@@ -17,7 +18,7 @@ class HubArray(MetaObject):
         self.info['order'] = order
         self.info['dclass'] = self.dclass = 'array'
 
-        parallel = 25 if parallel else 1
+        # parallel = 25 if parallel else 1
 
         self.pool = ThreadPool(nodes=parallel)
         self.initialize(self.key)
@@ -30,7 +31,7 @@ class HubArray(MetaObject):
     @property
     def shape(self):
         return self.info['shape']
-    
+
     @property
     def chunk_shape(self):
         return self.info['chunk_shape']
@@ -38,11 +39,11 @@ class HubArray(MetaObject):
     @property
     def dtype(self):
         return self.info['dtype']
-    
+
     @property
     def order(self):
         return self.info['order']
-    
+
     @property
     def protocol(self):
         return self.info['protocol']

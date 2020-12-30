@@ -69,9 +69,8 @@ def dataset(arrays=None, name=None):
 def load(name, backend='s3'):
     is_public = name in ['imagenet', 'cifar', 'coco', 'mnist']
     path = _get_path(name, is_public)
-
+    path = name
     storage = StorageFactory(protocols=backend)
-
     return HubArray(key=path, public=is_public, storage=storage)
 
 

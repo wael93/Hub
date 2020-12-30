@@ -110,11 +110,12 @@ class FS(Storage):
 
 
 class S3(Storage):
-    def __init__(self, bucket=None, public=False, aws_access_key_id=None, aws_secret_access_key=None, parallel=25):
+    def __init__(self, bucket=None, public=False, aws_access_key_id=None,
+                 aws_secret_access_key=None, aws_session_token=None, parallel=25):
         super(Storage, self).__init__()
 
         if bucket is None:
-            self.bucket = bucket=StoreControlClient.get_config()['BUCKET']
+            bucket = StoreControlClient.get_config()['BUCKET']
         self.bucket = bucket
         self.protocol = 'object'
 
@@ -123,14 +124,15 @@ class S3(Storage):
         )
 
         if aws_access_key_id is None:
-            aws_access_key_id = StoreControlClient.get_config(public)['AWS_ACCESS_KEY_ID']
-        if aws_secret_access_key is None:
-            aws_secret_access_key = StoreControlClient.get_config(public)['AWS_SECRET_ACCESS_KEY']
+            aws_access_key_id = os.environ['AWS_ACCESS_KEY_ID']
+            aws_secret_access_key = os.environ['AWS_SECRET_ACCESS_KEY']
+            aws_session_token = os.environ['AWS_SESSION_TOKEN']
 
         self.client = boto3.client(
             's3',
             aws_access_key_id=aws_access_key_id,
             aws_secret_access_key=aws_secret_access_key,
+            aws_session_token=aws_session_token,
             config=client_config
             # endpoint_url=URL,
         )
@@ -164,7 +166,8 @@ class S3(Storage):
                 Bucket=self.bucket,
                 Key=path,
             )
-            return resp['Body'].read()
+            x = resp['Body'].read()
+            return x
         except botocore.exceptions.ClientError as err:
             if err.response['Error']['Code'] == 'NoSuchKey':
                 return None
