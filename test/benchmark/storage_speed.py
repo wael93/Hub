@@ -19,7 +19,7 @@ def test_old_speed():
 
 
 def test_new_speed():
-    storage = S3FileSystem()
+    storage = S3FileSystem(config_kwargs={"max_pool_connections": 25})
     items = get_items()
     for item in tqdm(items):
         storage.head(item, 5 * 1000 * 1000)
