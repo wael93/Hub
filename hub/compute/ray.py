@@ -1,8 +1,9 @@
+import logging
 import sys
 from hub import Dataset
 from hub.api.datasetview import DatasetView
 from hub.utils import batchify
-from hub.compute import Transform
+from hub.compute import Transform, transform
 from typing import Iterable, Iterator
 from hub.exceptions import ModuleNotInstalledException
 from hub.api.sharded_datasetview import ShardedDatasetView
@@ -247,10 +248,20 @@ class RayTransform(Transform):
 
 class TransformUploadShard:
     def __init__(
-        self, ds, func, schema, url, token, num_shards, progressbar, public, kwargs
+        self,
+        ds,
+        func,
+        schema,
+        url,
+        token,
+        num_shards,
+        progressbar,
+        public,
+        transform_obj,
+        kwargs,
     ):
 
-        if isinstance(ds, (Dataset, DatasetView)):
+        if isinstance(ds, Dataset) or isinstance(ds, DatasetView):
             ds.squeeze_dim = False
 
         self._ds = ds
@@ -262,6 +273,7 @@ class TransformUploadShard:
         self.num_shards = num_shards
         self.progressbar = progressbar
         self.public = public
+        self.transform_obj = transform_obj
 
     def __call__(self, ids):
         """
@@ -290,7 +302,7 @@ class TransformUploadShard:
         ):
             return None
 
-        ds = self.upload(
+        ds = self.transform_obj.upload(
             shard_results,
             url=f"{self.url}_shard_{id_no}",
             token=self.token,
@@ -335,22 +347,32 @@ class RayGeneratorTransform(RayTransform):
             uploaded dataset
         """
         _ds = ds or self.base_ds
-        results = ray.util.iter.from_range(len(_ds), num_shards=self.workers).transform(
-            TransformUploadShard(
-                ds=_ds,
-                func=self.call_func,
-                schema=self.schema,
-                url=url,
-                num_shards=self.workers,
-                token=token,
-                progressbar=progressbar,
-                public=public,
-                kwargs=self.kwargs,
+        all_datasets = []
+        pieces = 25
+        for i in range(pieces):
+            sub_ds = _ds[int(i * len(_ds) / pieces) : int((i + 1) * len(_ds) / pieces)]
+            results = ray.util.iter.from_range(
+                len(sub_ds), num_shards=self.workers
+            ).transform(
+                TransformUploadShard(
+                    ds=sub_ds,
+                    func=self.call_func,
+                    schema=self.schema,
+                    url=f"{url}_piece_{i}",
+                    num_shards=self.workers,
+                    token=token,
+                    progressbar=progressbar,
+                    public=public,
+                    kwargs=self.kwargs,
+                    transform_obj=self,
+                )
             )
-        )
-        datasets = results.gather_sync()
-        datasets = [dataset for dataset in datasets if dataset]
-        ds = self.merge_sharded_dataset(datasets, url, token=token)
+            datasets = results.gather_sync()
+            results = None
+            datasets = [dataset for dataset in datasets if dataset]
+            all_datasets.extend(datasets)
+
+        ds = self.merge_sharded_dataset(all_datasets, url, token=token)
         return ds
 
     def merge_sharded_dataset(
