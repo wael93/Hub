@@ -8,6 +8,8 @@ from hub.exceptions import ModuleNotInstalledException
 from hub.api.sharded_datasetview import ShardedDatasetView
 import hub
 from hub.api.dataset_utils import get_value, str_to_int
+from math import ceil
+import gc
 
 
 def empty_remote(template, **kwargs):
@@ -73,7 +75,6 @@ class RayTransform(Transform):
     ):
         """
         The function to apply the transformation for each element in batchified manner
-
         Parameters
         ----------
         url: str
@@ -90,7 +91,6 @@ class RayTransform(Transform):
             only applicable if using hub storage, ignored otherwise
             setting this to False allows only the user who created it to access the dataset and
             the dataset won't be visible in the visualizer to the public
-
         Returns
         ----------
         ds: hub.Dataset
@@ -121,7 +121,6 @@ class RayTransform(Transform):
         """
         Remote function to upload a chunk
         Returns the shape of dynamic tensor to upload all in once after upload is completed
-
         Parameters
         ----------
         i_batch: Tuple
@@ -133,7 +132,6 @@ class RayTransform(Transform):
         Returns
         ----------
         (key, slice_, shape) to set the shape later
-
         """
         i, batch = i_batch
         if not isinstance(batch, dict) and isinstance(batch[0], ray.ObjectRef):
@@ -153,7 +151,7 @@ class RayTransform(Transform):
             # Sometimes ds._tensor slice_ gets out of the shape value
             shape = ds._tensors[f"/{key}"].get_shape_from_value([slice_], batch)
         ds[key, slice_] = batch
-
+        gc.collect()
         return (key, [slice_], shape)
 
     def upload(
@@ -167,7 +165,6 @@ class RayTransform(Transform):
         """Batchified upload of results.
         For each tensor batchify based on its chunk and upload.
         If tensor is dynamic then still upload element by element.
-
         Parameters
         ----------
         dataset: hub.Dataset
@@ -201,16 +198,13 @@ class RayTransform(Transform):
 
         tasks = []
         for key, value in results.items():
-
             length = ds[key].chunksize[0]
             value = get_value(value)
             value = str_to_int(value, ds.tokenizer)
             batched_values = batchify(value, length)
             chunk_id = list(range(len(batched_values)))
             index_batched_values = list(zip(chunk_id, batched_values))
-
             ds._tensors[f"/{key}"].disable_dynamicness()
-
             results = [
                 self.upload_chunk.remote(el, key=key, ds=ds)
                 for el in index_batched_values
@@ -225,7 +219,6 @@ class RayTransform(Transform):
     def set_dynamic_shapes(self, results, ds):
         """
         Sets shapes for dynamic tensors after the dataset is uploaded
-
         Parameters
         ----------
         results: Tuple
@@ -252,33 +245,60 @@ class RayTransform(Transform):
                 ds._tensors[f"/{key}"].set_dynamic_shape(slice_, shape)
 
 
-class TransformShard:
-    def __init__(self, ds, func, schema, kwargs):
+class TransformUploadShard:
+    def __init__(
+        self, ds, func, schema, url, token, num_shards, progressbar, public, kwargs
+    ):
 
-        if isinstance(ds, Dataset) or isinstance(ds, DatasetView):
+        if isinstance(ds, (Dataset, DatasetView)):
             ds.squeeze_dim = False
 
         self._ds = ds
         self._func = func
         self.schema = schema
         self.kwargs = kwargs
-        self.token = None
+        self.token = token
+        self.url = url
+        self.num_shards = num_shards
+        self.progressbar = progressbar
+        self.public = public
 
     def __call__(self, ids):
         """
         For each shard, transform each sample and then store inside shared memory of ray
         """
+        shard_size = ceil(len(self._ds) / self.num_shards)
+        transformed = []
+        id_no = None
         for index in ids:
+            id_no = index // shard_size
             item = self._ds[index]
-            if isinstance(item, DatasetView) or isinstance(item, Dataset):
+            if isinstance(item, (DatasetView, Dataset)):
                 item = item.compute()
 
             items = self._func(0, item)
             if not isinstance(items, list):
                 items = [items]
-
             for item in items:
-                yield Transform._flatten_dict(item, schema=self.schema)
+                transformed.append(Transform._flatten_dict(item, schema=self.schema))
+        shard_results = Transform._split_list_to_dicts(transformed, schema=self.schema)
+
+        if (
+            len(shard_results) == 0
+            or len(list(shard_results.values())[0]) == 0
+            or id_no is None
+        ):
+            return None
+
+        ds = self.upload(
+            shard_results,
+            url=f"{self.url}_shard_{id_no}",
+            token=self.token,
+            progressbar=self.progressbar,
+            public=self.public,
+        )
+        gc.collect()
+        yield ds
 
 
 class RayGeneratorTransform(RayTransform):
@@ -293,7 +313,6 @@ class RayGeneratorTransform(RayTransform):
     ):
         """
         The function to apply the transformation for each element by sharding the dataset
-
         Parameters
         ----------
         url: str
@@ -316,38 +335,21 @@ class RayGeneratorTransform(RayTransform):
             uploaded dataset
         """
         _ds = ds or self.base_ds
-
         results = ray.util.iter.from_range(len(_ds), num_shards=self.workers).transform(
-            TransformShard(
-                ds=_ds, func=self.call_func, schema=self.schema, kwargs=self.kwargs
-            )
-        )
-
-        @remote
-        def upload_shard(i, shard_results):
-            """
-            Create a seperate dataset per shard
-            """
-            shard_results = self._split_list_to_dicts(shard_results)
-
-            if len(shard_results) == 0 or len(list(shard_results.values())[0]) == 0:
-                return None
-
-            ds = self.upload(
-                shard_results,
-                url=f"{url}_shard_{i}",
+            TransformUploadShard(
+                ds=_ds,
+                func=self.call_func,
+                schema=self.schema,
+                url=url,
+                num_shards=self.workers,
                 token=token,
                 progressbar=progressbar,
                 public=public,
+                kwargs=self.kwargs,
             )
-            return ds
-
-        work = [
-            upload_shard.remote(i, shard) for i, shard in enumerate(results.shards())
-        ]
-
-        datasets = ray.get(work)
-        datasets = [d for d in datasets if d]
+        )
+        datasets = results.gather_sync()
+        datasets = [dataset for dataset in datasets if dataset]
         ds = self.merge_sharded_dataset(datasets, url, token=token)
         return ds
 

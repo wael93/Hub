@@ -15,6 +15,7 @@ from hub.schema.sequence import Sequence
 from hub.schema.features import featurify
 import posixpath
 from hub.defaults import OBJECT_CHUNK
+import logging
 
 
 def get_sample_size(schema, workers):
@@ -202,7 +203,8 @@ class Transform:
                 items.extend(r)
         return items
 
-    def _split_list_to_dicts(self, xs):
+    @classmethod
+    def _split_list_to_dicts(self, xs, schema=None):
         """| Helper function that transform list of dicts into dicts of lists
 
         Parameters
@@ -213,11 +215,10 @@ class Transform:
         xs_new: dicts of lists
         """
         xs_new = {}
+        schema = schema or self.schema
         for x in xs:
             if isinstance(x, list):
-                x = dict(
-                    zip(self._flatten_dict(self.schema, schema=self.schema).keys(), x)
-                )
+                x = dict(zip(self._flatten_dict(self.schema, schema=schema).keys(), x))
 
             for key, value in x.items():
                 if key in xs_new:
