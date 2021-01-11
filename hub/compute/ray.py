@@ -348,7 +348,7 @@ class RayGeneratorTransform(RayTransform):
         """
         _ds = ds or self.base_ds
         all_datasets = []
-        pieces = 25
+        pieces = 20
         for i in range(pieces):
             sub_ds = _ds[int(i * len(_ds) / pieces) : int((i + 1) * len(_ds) / pieces)]
             results = ray.util.iter.from_range(
