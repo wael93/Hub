@@ -1,17 +1,23 @@
 import os
 from hub.cli.auth import login_fn
-from hub.exceptions import HubException
+from hub.exceptions import LargeShapeFilteringException
 import numpy as np
 import pytest
 from hub import transform
 import hub.api.dataset as dataset
-from hub.schema import Tensor, Text, Image
+from hub.schema import Tensor, Text, Image, ClassLabel
 from hub.utils import (
     gcp_creds_exist,
     hub_creds_exist,
     s3_creds_exist,
     azure_creds_exist,
     transformers_loaded,
+    minio_creds_exist,
+)
+
+from hub.api.dataset_utils import (
+    slice_extract_info,
+    slice_split,
 )
 
 Dataset = dataset.Dataset
@@ -427,11 +433,6 @@ def test_append_dataset():
 
 def test_meta_information():
     description = {"author": "testing", "description": "here goes the testing text"}
-
-    description_changed = {
-        "author": "changed author",
-        "description": "now it's changed",
-    }
 
     schema = {"text": Text((None,), max_shape=(1000,))}
 

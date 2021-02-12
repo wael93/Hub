@@ -1,4 +1,3 @@
-import os
 import posixpath
 import collections.abc as abc
 import json
@@ -10,13 +9,11 @@ import fsspec
 import numcodecs
 import numcodecs.lz4
 import numcodecs.zstd
-import numpy as np
 
 from hub.schema.features import (
     Primitive,
     Tensor,
     SchemaDict,
-    HubSchema,
     featurify,
 )
 from hub.log import logger
@@ -53,11 +50,7 @@ from hub.client.hub_control import HubControlClient
 from hub.schema import Audio, BBox, ClassLabel, Image, Sequence, Text, Video
 from hub.numcodecs import PngCodec
 
-<<<<<<< HEAD
 from hub.utils import norm_cache, norm_shape, _tuple_product, EmptyLock
-=======
-from hub.utils import norm_cache, norm_shape
->>>>>>> parent of 2ff458d... Merge branch 'master' into notebooks-section
 from hub import defaults
 
 
@@ -82,11 +75,8 @@ class Dataset:
         tokenizer=None,
         lazy: bool = True,
         public: bool = True,
-<<<<<<< HEAD
         synchronizer: object = None,
         name: str = None,
-=======
->>>>>>> parent of 2ff458d... Merge branch 'master' into notebooks-section
     ):
         """| Open a new or existing dataset for read/write
         Parameters
@@ -120,13 +110,10 @@ class Dataset:
             only applicable if using hub storage, ignored otherwise
             setting this to False allows only the user who created it to access the dataset and
             the dataset won't be visible in the visualizer to the public
-<<<<<<< HEAD
         synchronizer: object, optional
             for synchronizing multiple workers working on the same dataset
         name: str, optional
             only applicable when using hub storage, this is the name that shows up on the visualizer
-=======
->>>>>>> parent of 2ff458d... Merge branch 'master' into notebooks-section
         """
 
         shape = norm_shape(shape)
@@ -142,13 +129,10 @@ class Dataset:
         self._mode = mode
         self.tokenizer = tokenizer
         self.lazy = lazy
-<<<<<<< HEAD
 
         self.synchronizer = synchronizer
 
         self._name = name
-=======
->>>>>>> parent of 2ff458d... Merge branch 'master' into notebooks-section
 
         self._fs, self._path = (
             (fs, url) if fs else get_fs_and_path(self._url, token=token, public=public)
@@ -263,8 +247,8 @@ class Dataset:
             "schema": hub.schema.serialize.serialize(self._schema),
             "version": 1,
         }
-
-        if self._meta_information != None:
+        
+        if self._meta_information is not None:
             meta["meta_info"] = self._meta_information
 
         self._fs_map["meta.json"] = bytes(json.dumps(meta), "utf-8")
@@ -524,11 +508,8 @@ class Dataset:
                 if t._dynamic_tensor is not None:
                     change_shape(t._dynamic_tensor, total)
 
-
                 self._fs_map["meta.json"] = json.dumps(self.meta).encode("utf-8")
 
-        
- 
     def append_shape(self, size: int):
         """ Append the shape: Heavy Operation """
         lock_path = f"{self._path}_append"
@@ -623,15 +604,7 @@ class Dataset:
                         else:
                             cur[split_key[i]] = {}
                             cur = cur[split_key[i]]
-<<<<<<< HEAD
-                    # print(key, index)
-                    cur[split_key[-1]] = _get_active_item(key, index)
-                d['label_chexpert'] = d['label_negbio'] = np.zeros((14))
-                d['study_date'] = d['study_time'] = d['report'] = d['label_chexpert'] = np.zeros((14))
-                d['image'] = np.zeros((1, 512,512,1))
-=======
                     cur[split_key[-1]] = self._tensors[key][index]
->>>>>>> parent of 2ff458d... Merge branch 'master' into notebooks-section
                 yield (d)
 
         def dict_to_tf(my_dtype):
@@ -711,7 +684,6 @@ class Dataset:
     def enable_lazy(self):
         self.lazy = True
 
-<<<<<<< HEAD
     def _save_meta(self):
         lock_path = f"{self._path}_meta"
         synchronizer = self.synchronizer or {lock_path: EmptyLock()}
@@ -720,8 +692,6 @@ class Dataset:
             _meta["meta_info"] = self._meta_information
             self._fs_map["meta.json"] = json.dumps(_meta).encode("utf-8")
 
-=======
->>>>>>> parent of 2ff458d... Merge branch 'master' into notebooks-section
     def flush(self):
         """Save changes from cache to dataset final storage.
         Does not invalidate this object.
@@ -1235,18 +1205,13 @@ class TorchDataset:
                 cur = cur[split_key[i]]
 
             item = self._get_active_item(key, index)
-            #if not item.dtype != 'object':
-            #    continue
 
             if not isinstance(item, bytes) and not isinstance(item, str):
                 t = item
-                if self.inplace:
-                    #if t.dtype == 'uint16': 
-                    #    t = t.astype('int16')                  
+                if self.inplace:               
                     t = torch.tensor(t)
                 cur[split_key[-1]] = t
         d = self._do_transform(d)
-        # print(d)
         if self.inplace & (self.output_type != dict) & (type(d) == dict):
             d = self.output_type(d.values())
         return d

@@ -4,7 +4,6 @@ from hub.api.dataset_utils import get_value, slice_extract_info, slice_split, st
 
 # from hub.exceptions import NoneValueException
 import collections.abc as abc
-import hub.api as api
 
 
 class ObjectView:
