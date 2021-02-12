@@ -310,12 +310,13 @@ class Dataset:
             return True
 
     def _get_dynamic_tensor_dtype(self, t_dtype):
-        if isinstance(t_dtype, Primitive):
-            return t_dtype.dtype
-        elif isinstance(t_dtype.dtype, Primitive):
-            return t_dtype.dtype.dtype
-        else:
-            return "object"
+        while not isinstance(t_dtype, Primitive):
+            try:
+                t_dtype = t_dtype.dtype
+            except AttributeError:
+                # fallback
+                return "object"
+        return t_dtype.dtype
 
     def _get_compressor(self, compressor: str):
         if compressor.lower() == "lz4":
