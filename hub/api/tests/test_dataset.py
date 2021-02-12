@@ -616,7 +616,6 @@ def test_dataset_assign_value():
     assert ds["text", 6].compute() == "YGFJN75NF"
 
 
-<<<<<<< HEAD
 def test_dataset_filtering():
     my_schema = {
         "fname": Text((None,), max_shape=(10,)),
@@ -672,11 +671,7 @@ def test_dataset_filtering():
         "lname": Text((None,), max_shape=(10,)),
         "image": Image((1920, 1080, 3)),
     }
-<<<<<<< HEAD
-    ds = Dataset("./data/test/filtering2", shape=(100,), schema=my_schema2, mode="w")
-=======
     ds = Dataset("./data/tests/filtering", shape=(100,), schema=my_schema2, mode="w")
->>>>>>> master
     with pytest.raises(LargeShapeFilteringException):
         ds.filter({"image": np.ones((1920, 1080, 3))})
     with pytest.raises(KeyError):
@@ -696,11 +691,7 @@ def test_dataset_filtering_2():
         "img": Image((None, None, 3), max_shape=(100, 100, 3)),
         "cl": ClassLabel(names=["cat", "dog", "horse"]),
     }
-<<<<<<< HEAD
-    ds = Dataset("./data/test/filtering_3", shape=(100,), schema=schema, mode="w")
-=======
     ds = Dataset("./data/tests/filtering_2", shape=(100,), schema=schema, mode="w")
->>>>>>> master
     for i in range(100):
         ds["cl", i] = 0 if i % 5 == 0 else 1
         ds["img", i] = i * np.ones((5, 6, 3))
@@ -721,11 +712,7 @@ def test_dataset_filtering_3():
         "img": Image((None, None, 3), max_shape=(100, 100, 3)),
         "cl": ClassLabel(names=["cat", "dog", "horse"]),
     }
-<<<<<<< HEAD
-    ds = Dataset("./data/test/filtering_3", shape=(100,), schema=schema, mode="w")
-=======
     ds = Dataset("./data/tests/filtering_3", shape=(100,), schema=schema, mode="w")
->>>>>>> master
     for i in range(100):
         ds["cl", i] = 0 if i < 10 else 1
         ds["img", i] = i * np.ones((5, 6, 3))
@@ -813,8 +800,6 @@ def test_minio_endpoint():
         assert (ds["abc", i].compute() == i * np.ones((100, 100, 3))).all()
 
 
-=======
->>>>>>> parent of 2ff458d... Merge branch 'master' into notebooks-section
 if __name__ == "__main__":
     test_dataset_assign_value()
     test_dataset_setting_shape()
