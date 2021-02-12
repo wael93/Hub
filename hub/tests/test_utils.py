@@ -1,9 +1,3 @@
-"""
-License:
-This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
-If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
-"""
-
 from hub.utils import *
 from hub.utils import _flatten
 
@@ -52,12 +46,6 @@ def test_tfdatasets_loaded():
         import tensorflow_datasets
     else:
         assert not result
-
-
-def test_transformers_loaded():
-    result = transformers_loaded()
-    if result:
-        import transformers
 
 
 def test_pathos_loaded():

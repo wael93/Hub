@@ -1,9 +1,3 @@
-"""
-License:
-This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
-If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
-"""
-
 # from typing import Tuple
 
 from hub.schema.features import Tensor
@@ -32,6 +26,10 @@ class BBox(Tensor):
         super(BBox, self).__init__(
             shape=(4,), dtype=dtype, chunks=chunks, compressor=compressor
         )
+
+    def get_attr_dict(self):
+        """Return class attributes."""
+        return self.__dict__
 
     def __str__(self):
         out = super().__str__()

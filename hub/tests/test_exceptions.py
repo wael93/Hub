@@ -1,19 +1,10 @@
-"""
-License:
-This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
-If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
-"""
-
 from hub.exceptions import (
-    AdvancedSlicingNotSupported,
-    DaskModuleNotInstalledException,
     HubException,
     AuthenticationException,
     AuthorizationException,
     NotFound,
     NotFoundException,
     BadRequestException,
-    NotIterable,
     OverLimitException,
     ServerException,
     BadGatewayException,
@@ -69,9 +60,6 @@ def test_exceptions():
     NotHubDatasetToOverwriteException()
     NotHubDatasetToAppendException()
     DynamicTensorNotFoundException()
-    NotIterable()
-    AdvancedSlicingNotSupported()
-    DaskModuleNotInstalledException()
 
     DynamicTensorShapeException("none")
     DynamicTensorShapeException("length")

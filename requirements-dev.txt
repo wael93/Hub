@@ -1,4 +1,9 @@
 pytest==6.2.1
 pytest-cov==2.10.1
 flake8==3.8.4
+<<<<<<< HEAD
 cloudpickle>=1.6.0,<2
+=======
+black==20.8b1
+ray==1.0.0
+>>>>>>> parent of 2ff458d... Merge branch 'master' into notebooks-section

@@ -1,9 +1,3 @@
-"""
-License:
-This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
-If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
-"""
-
 from math import gcd
 import time
 from collections import abc
@@ -70,7 +64,9 @@ def azure_creds_exist():
     import os
 
     env = os.getenv("ACCOUNT_KEY")
-    return env is not None
+    if env is not None:
+        return True
+    return False
 
 
 def hub_creds_exist():
@@ -79,17 +75,9 @@ def hub_creds_exist():
     import os
 
     env = os.getenv("ACTIVELOOP_HUB_PASSWORD")
-    return env is not None
-
-
-def minio_creds_exist():
-    """Checks if credentials exists"""
-
-    import os
-
-    env1 = os.getenv("ACTIVELOOP_MINIO_KEY")
-    env2 = os.getenv("ACTIVELOOP_MINIO_SECRET_ACCESS_KEY")
-    return env1 is not None and env2 is not None
+    if env is not None:
+        return True
+    return False
 
 
 def pytorch_loaded():
@@ -183,13 +171,6 @@ def batchify(iterable, n=1):
     for ndx in range(0, ls, n):
         batches.append(iterable[ndx : min(ndx + n, ls)])
     return batches
-
-
-def _tuple_product(tuple_):
-    res = 1
-    for t in tuple_:
-        res *= t
-    return res
 
 
 class Timer:

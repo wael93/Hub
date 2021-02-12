@@ -1,9 +1,3 @@
-"""
-License:
-This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
-If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
-"""
-
 from typing import List
 from hub.schema.features import Tensor
 
@@ -88,8 +82,8 @@ class ClassLabel(Tensor):
             self._names = names
             self.names = names
         else:
-            self._names = _load_names_from_file(names_file)
-            self.names = self._names
+            self._names = names
+            self.names = _load_names_from_file(names_file)
 
     @property
     def names(self):
@@ -138,11 +132,16 @@ class ClassLabel(Tensor):
 
     def int2str(self, int_value: int):
         """Conversion integer => class name string."""
-        return self.names[int_value]
+        if self._int2str:
+            return self._int2str[int_value]
 
     @property
     def num_classes(self):
         return self._num_classes
+
+    def get_attr_dict(self):
+        """Return class attributes."""
+        return self.__dict__
 
     def __str__(self):
         out = super().__str__()
