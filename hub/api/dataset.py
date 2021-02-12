@@ -652,13 +652,18 @@ class Dataset:
                 for key in self.keys:
                     split_key = key.split("/")
                     cur = d
+                    
                     for i in range(1, len(split_key) - 1):
                         if split_key[i] in cur.keys():
                             cur = cur[split_key[i]]
                         else:
                             cur[split_key[i]] = {}
                             cur = cur[split_key[i]]
+                    # print(key, index)
                     cur[split_key[-1]] = _get_active_item(key, index)
+                d['label_chexpert'] = d['label_negbio'] = np.zeros((14))
+                d['study_date'] = d['study_time'] = d['report'] = d['label_chexpert'] = np.zeros((14))
+                d['image'] = np.zeros((1, 512,512,1))
                 yield (d)
 
         def dict_to_tf(my_dtype):
@@ -1297,12 +1302,18 @@ class TorchDataset:
                 cur = cur[split_key[i]]
 
             item = self._get_active_item(key, index)
+            #if not item.dtype != 'object':
+            #    continue
+
             if not isinstance(item, bytes) and not isinstance(item, str):
                 t = item
                 if self.inplace:
+                    #if t.dtype == 'uint16': 
+                    #    t = t.astype('int16')                  
                     t = torch.tensor(t)
                 cur[split_key[-1]] = t
         d = self._do_transform(d)
+        # print(d)
         if self.inplace & (self.output_type != dict) & (type(d) == dict):
             d = self.output_type(d.values())
         return d
