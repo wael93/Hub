@@ -1,9 +1,3 @@
-"""
-License:
-This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
-If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
-"""
-
 from click import ClickException
 
 
@@ -167,12 +161,6 @@ class ShapeArgumentNotFoundException(HubException):
 class SchemaArgumentNotFoundException(HubException):
     def __init__(self):
         message = "Parameter 'schema' should be provided for Dataset creation."
-        super(HubException, self).__init__(message=message)
-
-
-class LargeShapeFilteringException(HubException):
-    def __init__(self, key):
-        message = f"The shape of {key} is large (product > 100), use smaller keys for filtering"
         super(HubException, self).__init__(message=message)
 
 

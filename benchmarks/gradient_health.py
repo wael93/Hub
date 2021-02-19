@@ -332,7 +332,7 @@ class MimiciiiCxr:
 
 
 def main():
-    DEFAULT_WORKERS = 100
+    DEFAULT_WORKERS = 400
     DEFAULT_SCHEDULER = "single"
     if DEFAULT_SCHEDULER == "ray_generator":
         DEFAULT_REDIS_URL = (

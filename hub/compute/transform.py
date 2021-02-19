@@ -1,9 +1,3 @@
-"""
-License:
-This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
-If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
-"""
-
 import zarr
 import numpy as np
 import math
@@ -12,10 +6,11 @@ from hub.api.dataset import Dataset
 from tqdm import tqdm
 from collections.abc import MutableMapping
 from hub.utils import batchify
-from hub.api.dataset_utils import get_value, slice_split, str_to_int, slice_extract_info
+from hub.api.dataset_utils import get_value, slice_extract_info, slice_split, str_to_int
 import collections.abc as abc
 from hub.api.datasetview import DatasetView
 from pathos.pools import ProcessPool, ThreadPool
+from hub.schema import Primitive
 from hub.schema.sequence import Sequence
 from hub.schema.features import featurify
 import posixpath
@@ -135,10 +130,17 @@ class Transform:
         slice_ = list(slice_)
         subpath, slice_list = slice_split(slice_)
 
-        slice_list = slice_list or [slice(None, None, None)]
+        if len(slice_list) == 0:
+            slice_list = [slice(None, None, None)]
 
         num, ofs = slice_extract_info(slice_list[0], self.shape[0])
-        ds_view = self._ds[slice_list[0]]
+
+        ds_view = DatasetView(
+            dataset=self._ds,
+            num_samples=num,
+            offset=ofs,
+            squeeze_dim=isinstance(slice_list[0], int),
+        )
 
         path = posixpath.expanduser("~/.activeloop/tmparray")
         new_ds = self.store(path, length=num, ds=ds_view, progressbar=False)
@@ -173,6 +175,24 @@ class Transform:
             else:
                 items.append((new_key, v))
         return dict(items)
+
+    @classmethod
+    def _flatten(cls, items, schema):
+        """
+        Takes a dictionary or list of dictionary.
+        Returns a dictionary of concatenated values.
+        Dictionary follows schema.
+        """
+        final_item = {}
+        for item in cls._unwrap(items):
+            item = cls._flatten_dict(item, schema=schema)
+
+            for k, v in item.items():
+                if k in final_item:
+                    final_item[k].append(v)
+                else:
+                    final_item[k] = [v]
+        return final_item
 
     @classmethod
     def dtype_from_path(cls, path, schema):
@@ -313,15 +333,12 @@ class Transform:
             # Disable dynamic arrays
             ds.dataset._tensors[f"/{key}"].disable_dynamicness()
             list(self.map(upload_chunk, index_batched_values))
-            offset = ds.indexes[
-                0
-            ]  # here ds.indexes will always be a contiguous list as obtained after slicing
 
             # Enable and rewrite shapes
             if ds.dataset._tensors[f"/{key}"].is_dynamic:
                 ds.dataset._tensors[f"/{key}"].enable_dynamicness()
                 ds.dataset._tensors[f"/{key}"].set_shape(
-                    [slice(offset, offset + len(value))], value
+                    [slice(ds.offset, ds.offset + len(value))], value
                 )
 
         ds.commit()

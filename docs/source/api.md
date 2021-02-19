@@ -19,6 +19,14 @@
    :special-members:
 ```
 
+### TensorView
+```eval_rst
+.. autoclass:: hub.api.tensorview.TensorView
+   :members:
+   :no-undoc-members:
+   :private-members:
+   :special-members:
+```
 ### Sharded Dataset
 ```eval_rst
 .. autoclass:: hub.api.sharded_datasetview.ShardedDatasetView

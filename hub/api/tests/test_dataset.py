@@ -1,22 +1,11 @@
-"""
-License:
-This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
-If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
-"""
-
-from hub.api.dataset_utils import slice_extract_info, slice_split
-from hub.schema.class_label import ClassLabel
 import os
-import shutil
-import cloudpickle
-import pickle
 from hub.cli.auth import login_fn
-from hub.exceptions import HubException, LargeShapeFilteringException
+from hub.exceptions import LargeShapeFilteringException
 import numpy as np
 import pytest
 from hub import transform
 import hub.api.dataset as dataset
-from hub.schema import Tensor, Text, Image, Sequence, BBox, SchemaDict
+from hub.schema import Tensor, Text, Image, ClassLabel
 from hub.utils import (
     gcp_creds_exist,
     hub_creds_exist,
@@ -24,6 +13,11 @@ from hub.utils import (
     azure_creds_exist,
     transformers_loaded,
     minio_creds_exist,
+)
+
+from hub.api.dataset_utils import (
+    slice_extract_info,
+    slice_split,
 )
 
 Dataset = dataset.Dataset
@@ -39,7 +33,7 @@ my_schema = {
 }
 
 
-def test_dataset_2():
+def test_dataset2():
     dt = {"first": "float", "second": "float"}
     ds = Dataset(schema=dt, shape=(2,), url="./data/test/test_dataset2", mode="w")
     ds.meta_information["description"] = "This is my description"
@@ -51,8 +45,14 @@ def test_dataset_2():
 
 def test_dataset_append_and_read():
     dt = {"first": "float", "second": "float"}
-    os.makedirs("./data/test/test_dataset_append_and_read", exist_ok=True)
-    shutil.rmtree("./data/test/test_dataset_append_and_read")
+    ds = Dataset(
+        schema=dt,
+        shape=(2,),
+        url="./data/test/test_dataset_append_and_read",
+        mode="w",
+    )
+
+    ds.delete()
 
     ds = Dataset(
         schema=dt,
@@ -62,7 +62,6 @@ def test_dataset_append_and_read():
     )
 
     ds["first"][0] = 2.3
-    ds.meta_information["description"] = "This is my description"
     assert ds.meta_information["description"] == "This is my description"
     assert ds["second"][0].numpy() != 2.3
     ds.close()
@@ -154,40 +153,6 @@ def test_dataset_with_chunks():
         ds["image", 5, 4, 100:200, 150:300, :].numpy()
         == np.ones((100, 150, 3), "uint8")
     ).all()
-
-
-def test_pickleability(url="./data/test/test_dataset_dynamic_shaped"):
-    schema = {
-        "first": Tensor(
-            shape=(None, None),
-            dtype="int32",
-            max_shape=(100, 100),
-            chunks=(100,),
-        )
-    }
-    ds = Dataset(
-        url=url,
-        token=None,
-        shape=(1000,),
-        mode="w",
-        schema=schema,
-    )
-
-    ds["first"][0] = np.ones((10, 10))
-
-    pickled_ds = cloudpickle.dumps(ds)
-    new_ds = pickle.loads(pickled_ds)
-    assert np.all(new_ds["first"][0].compute() == ds["first"][0].compute())
-
-
-@pytest.mark.skipif(not s3_creds_exist(), reason="requires s3 credentials")
-def test_pickleability_s3():
-    test_pickleability("s3://snark-test/test_dataset_pickle_s3")
-
-
-@pytest.mark.skipif(not gcp_creds_exist(), reason="requires gcp credentials")
-def test_pickleability_gcs():
-    test_pickleability("gcs://snark-test/test_dataset_gcs")
 
 
 def test_dataset_dynamic_shaped():
@@ -394,42 +359,18 @@ def test_datasetview_get_dictionary():
     ds["label", 5, "a"] = 5 * np.ones((100, 200))
     ds["label", 5, "d", "e"] = 3 * np.ones((5, 3))
     dsv = ds[2:10]
-    dsv.disable_lazy()
     dic = dsv[3, "label"]
-    assert (dic["a"] == 5 * np.ones((100, 200))).all()
-    assert (dic["d"]["e"] == 3 * np.ones((5, 3))).all()
-    dsv.enable_lazy()
-    ds["label", "a"] = 9 * np.ones((20, 100, 200))
-    ds["label", "d", "e"] = 11 * np.ones((20, 5, 3))
-    dic2 = dsv["label"]
-    assert (dic2["a"].compute() == 9 * np.ones((8, 100, 200))).all()
-    assert (dic2["d"]["e"].compute() == 11 * np.ones((8, 5, 3))).all()
-    dic3 = ds["label"]
-    assert (dic3["a"].compute() == 9 * np.ones((20, 100, 200))).all()
-    assert (dic3["d"]["e"].compute() == 11 * np.ones((20, 5, 3))).all()
+    assert (dic["a"].compute() == 5 * np.ones((100, 200))).all()
+    assert (dic["d"]["e"].compute() == 3 * np.ones((5, 3))).all()
 
 
 def test_tensorview_slicing():
     dt = {"first": Tensor(shape=(None, None), max_shape=(250, 300))}
     ds = Dataset(schema=dt, shape=(20,), url="./data/test/tensorivew_slicing", mode="w")
     tv = ds["first", 5:6, 7:10, 9:10]
-    tv.disable_lazy()
-    tv.enable_lazy()
-    assert tv.compute().shape == tuple(tv.shape) == (1, 3, 1)
+    assert tv.numpy().shape == tuple(tv.shape) == (1, 3, 1)
     tv2 = ds["first", 5:6, 7:10, 9]
     assert tv2.numpy().shape == tuple(tv2.shape) == (1, 3)
-
-
-def test_tensorview_iter():
-    schema = {"abc": "int32"}
-    ds = Dataset(
-        schema=schema, shape=(20,), url="./data/test/tensorivew_slicing", mode="w"
-    )
-    for i in range(20):
-        ds["abc", i] = i
-    tv = ds["abc", 3]
-    for item in tv:
-        assert item.compute() == 3
 
 
 def test_text_dataset():
@@ -447,13 +388,6 @@ def test_text_dataset():
     assert dsv["names", 0].numpy() == text + "7"
     dsv["names"][1] = text + "8"
     assert dsv["names"][1].numpy() == text + "8"
-
-    schema2 = {
-        "id": Text(shape=(4,), dtype="int64"),
-    }
-    ds2 = Dataset("./data/test/testing_text_2", mode="w", schema=schema2, shape=(10,))
-    ds2[0:5, "id"] = ["abcd", "efgh", "ijkl", "mnop", "qrst"]
-    assert ds2[2:4, "id"].compute() == ["ijkl", "mnop"]
 
 
 @pytest.mark.skipif(
@@ -477,19 +411,6 @@ def test_text_dataset_tokenizer():
     dsv["names"][1] = text + " 8"
     assert dsv["names"][1].numpy() == text + " 8"
 
-    schema2 = {
-        "id": Text(shape=(4,), dtype="int64"),
-    }
-    ds2 = Dataset(
-        "./data/test/testing_text_2",
-        mode="w",
-        schema=schema2,
-        shape=(10,),
-        tokenizer=True,
-    )
-    ds2[0:5, "id"] = ["abcd", "abcd", "abcd", "abcd", "abcd"]
-    assert ds2[2:4, "id"].compute() == ["abcd", "abcd"]
-
 
 def test_append_dataset():
     dt = {"first": Tensor(shape=(250, 300)), "second": "float"}
@@ -512,11 +433,6 @@ def test_append_dataset():
 
 def test_meta_information():
     description = {"author": "testing", "description": "here goes the testing text"}
-
-    description_changed = {
-        "author": "changed author",
-        "description": "now it's changed",
-    }
 
     schema = {"text": Text((None,), max_shape=(1000,))}
 
@@ -592,18 +508,13 @@ def test_dataset_lazy():
         "text": Text(shape=(None,), max_shape=(12,)),
     }
     url = "./data/test/ds_lazy"
-    ds = Dataset(schema=dt, shape=(2,), url=url, mode="w")
+    ds = Dataset(schema=dt, shape=(2,), url=url, mode="w", lazy=False)
     ds["text", 1] = "hello world"
     ds["second", 0] = 3.14
     ds["first", 0] = np.array([5, 6])
-    ds.disable_lazy()
     assert ds["text", 1] == "hello world"
     assert ds["second", 0] == 3.14
     assert (ds["first", 0] == np.array([5, 6])).all()
-    ds.enable_lazy()
-    assert ds["text", 1].compute() == "hello world"
-    assert ds["second", 0].compute() == 3.14
-    assert (ds["first", 0].compute() == np.array([5, 6])).all()
 
 
 def test_dataset_view_lazy():
@@ -613,19 +524,14 @@ def test_dataset_view_lazy():
         "text": Text(shape=(None,), max_shape=(12,)),
     }
     url = "./data/test/dsv_lazy"
-    ds = Dataset(schema=dt, shape=(4,), url=url, mode="w")
+    ds = Dataset(schema=dt, shape=(4,), url=url, mode="w", lazy=False)
     ds["text", 3] = "hello world"
     ds["second", 2] = 3.14
     ds["first", 2] = np.array([5, 6])
     dsv = ds[2:]
-    dsv.disable_lazy()
     assert dsv["text", 1] == "hello world"
     assert dsv["second", 0] == 3.14
     assert (dsv["first", 0] == np.array([5, 6])).all()
-    dsv.enable_lazy()
-    assert dsv["text", 1].compute() == "hello world"
-    assert dsv["second", 0].compute() == 3.14
-    assert (dsv["first", 0].compute() == np.array([5, 6])).all()
 
 
 def test_datasetview_repr():
@@ -637,45 +543,8 @@ def test_datasetview_repr():
     url = "./data/test/dsv_repr"
     ds = Dataset(schema=dt, shape=(9,), url=url, mode="w", lazy=False)
     dsv = ds[2:]
-    print_text = "DatasetView(Dataset(schema=SchemaDict({'first': Tensor(shape=(2,), dtype='float64'), 'second': 'float64', 'text': Text(shape=(None,), dtype='int64', max_shape=(12,))})url='./data/test/dsv_repr', shape=(9,), mode='w'))"
+    print_text = "DatasetView(Dataset(schema=SchemaDict({'first': Tensor(shape=(2,), dtype='float64'), 'second': 'float64', 'text': Text(shape=(None,), dtype='int64', max_shape=(12,))})url='./data/test/dsv_repr', shape=(9,), mode='w'), slice=slice(2, 9, None))"
     assert dsv.__repr__() == print_text
-
-
-def test_datasetview_2():
-    dt = {
-        "first": Tensor(shape=(2,)),
-        "second": "float",
-        "text": Text(shape=(None,), max_shape=(12,)),
-    }
-    ds = Dataset("./data/test/dsv_2/", schema=dt, shape=(9,), mode="w")
-    dsv = ds[2:]
-    with pytest.raises(ValueError):
-        dsv[3] = np.ones((3, 5))
-
-    with pytest.raises(KeyError):
-        dsv["abc"] = np.ones((3, 5))
-    dsv["second"] = np.array([0, 1, 2, 3, 4, 5, 6])
-    for i in range(7):
-        assert dsv[i, "second"].compute() == i
-
-
-def test_dataset_3():
-    dt = {
-        "first": Tensor(shape=(2,)),
-        "second": "float",
-        "text": Text(shape=(None,), max_shape=(12,)),
-    }
-    ds = Dataset("./data/test/ds_3/", schema=dt, shape=(9,), mode="w")
-    with pytest.raises(ValueError):
-        ds[3, 8] = np.ones((3, 5))
-
-    with pytest.raises(KeyError):
-        ds["abc"] = np.ones((3, 5))
-    ds["second"] = np.array([0, 1, 2, 3, 4, 5, 6, 7, 8])
-    for i in range(9):
-        assert ds[i, "second"].compute() == i
-    with pytest.raises(ValueError):
-        ds[3, 8].compute()
 
 
 def test_dataset_casting():
@@ -753,7 +622,7 @@ def test_dataset_filtering():
         "fname": Text((None,), max_shape=(10,)),
         "lname": Text((None,), max_shape=(10,)),
     }
-    ds = Dataset("./data/test/filtering", shape=(100,), schema=my_schema, mode="w")
+    ds = Dataset("./data/tests/filtering", shape=(100,), schema=my_schema, mode="w")
     for i in range(100):
         ds["fname", i] = "John"
         ds["lname", i] = "Doe"
@@ -803,7 +672,7 @@ def test_dataset_filtering():
         "lname": Text((None,), max_shape=(10,)),
         "image": Image((1920, 1080, 3)),
     }
-    ds = Dataset("./data/test/filtering2", shape=(100,), schema=my_schema2, mode="w")
+    ds = Dataset("./data/tests/filtering", shape=(100,), schema=my_schema2, mode="w")
     with pytest.raises(LargeShapeFilteringException):
         ds.filter({"image": np.ones((1920, 1080, 3))})
     with pytest.raises(KeyError):
@@ -823,7 +692,7 @@ def test_dataset_filtering_2():
         "img": Image((None, None, 3), max_shape=(100, 100, 3)),
         "cl": ClassLabel(names=["cat", "dog", "horse"]),
     }
-    ds = Dataset("./data/test/filtering_3", shape=(100,), schema=schema, mode="w")
+    ds = Dataset("./data/tests/filtering_2", shape=(100,), schema=schema, mode="w")
     for i in range(100):
         ds["cl", i] = 0 if i % 5 == 0 else 1
         ds["img", i] = i * np.ones((5, 6, 3))
@@ -844,7 +713,7 @@ def test_dataset_filtering_3():
         "img": Image((None, None, 3), max_shape=(100, 100, 3)),
         "cl": ClassLabel(names=["cat", "dog", "horse"]),
     }
-    ds = Dataset("./data/test/filtering_3", shape=(100,), schema=schema, mode="w")
+    ds = Dataset("./data/tests/filtering_3", shape=(100,), schema=schema, mode="w")
     for i in range(100):
         ds["cl", i] = 0 if i < 10 else 1
         ds["img", i] = i * np.ones((5, 6, 3))
@@ -942,7 +811,7 @@ if __name__ == "__main__":
     test_dataset()
     test_dataset_batch_write_2()
     test_append_dataset()
-    test_dataset_2()
+    test_dataset2()
     test_text_dataset()
     test_text_dataset_tokenizer()
     test_dataset_compute()
@@ -951,13 +820,3 @@ if __name__ == "__main__":
     test_dataset_view_lazy()
     test_dataset_hub()
     test_meta_information()
-    test_dataset_filtering()
-    test_dataset_filtering_2()
-    test_pickleability()
-    test_dataset_append_and_read()
-    test_tensorview_iter()
-    test_dataset_filtering_3()
-    test_datasetview_2()
-    test_dataset_3()
-    test_dataset_utils()
-    test_check_label_name()

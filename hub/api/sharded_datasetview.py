@@ -1,9 +1,3 @@
-"""
-License:
-This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
-If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
-"""
-
 from collections.abc import Iterable
 
 from hub.api.datasetview import DatasetView
@@ -32,9 +26,6 @@ class ShardedDatasetView:
     def __len__(self):
         return self.num_samples
 
-    def __str__(self):
-        return f"ShardedDatasetView(shape={str(self.shape)})"
-
     def __repr__(self):
         return self.__str__()
 
@@ -62,7 +53,9 @@ class ShardedDatasetView:
         slice_ = list(slice_)
         if not isinstance(slice_[0], int):
             # TODO add advanced slicing options
-            raise AdvancedSlicingNotSupported()
+            raise AdvancedSlicingNotSupported(
+                "No slicing since there is no currently cross sharded dataset support"
+            )
 
         shard_id, offset = self.identify_shard(slice_[0])
         slice_[0] = slice_[0] - offset

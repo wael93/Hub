@@ -1,10 +1,3 @@
-"""
-License:
-This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
-If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
-"""
-
-from hub.utils import _tuple_product
 from hub.numcodecs import PngCodec
 import math
 
@@ -76,7 +69,7 @@ class ShapeDetector:
 
     def _get_chunks(self, shape, max_shape, chunks, dtype, chunksize):
         if chunks is None:
-            prod = _tuple_product(max_shape[1:])
+            prod = self._tuple_product(max_shape[1:])
             if dtype == "object":
                 return (self._object_chunking,) + max_shape[1:]
             if prod <= 2 * chunksize:
@@ -106,6 +99,12 @@ class ShapeDetector:
                 assert len(chunks) == len(shape)
                 assert chunks[0] == 1
                 return chunks
+
+    def _tuple_product(self, tuple_):
+        res = 1
+        for t in tuple_:
+            res *= t
+        return res
 
     def _determine_chunksizes(self, max_shape, dtype, chunksize):
         """
