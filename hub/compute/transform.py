@@ -487,7 +487,7 @@ class Transform:
             total=length,
             unit_scale=True,
             unit=" items",
-            desc="Computing the transormation",
+            desc="Computing the transformation",
         ) as pbar:
             for ds_in_shard in batchify_generator(ds_in, n_samples):
                 n_results = self.store_shard(ds_in_shard, ds_out, start, token=token)

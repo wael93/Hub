@@ -344,13 +344,17 @@ class RayGeneratorTransform(RayTransform):
         results = []
         if self.synchronizer is None:
             logger.warning(
-                "Running ray without syncronizer added will cause multiple workers writing to the same chunk."
+                "Running ray without synchronizer added will cause multiple workers writing to the same chunk."
             )
         ds_out = self.create_dataset(
             url, length=1000 * 1000, token=token, public=public, create=True
         )
-
+        print("Dataset Length:")
+        print(len(_ds))
         for batch in batchify(range(0, len(_ds)), len(_ds) // self.workers):
+            print("Batch Length:")
+            print(len(batch))
+
             actor = TransformShard.remote(
                 ds=self.ray_ds,
                 func=self.ray_func,
