@@ -8,7 +8,7 @@ import os
 import posixpath
 from typing import Dict, Any
 
-import tensorflow_datasets.public_api as tfds
+# import tensorflow_datasets.public_api as tfds
 import tensorflow as tf
 from fsspec import AbstractFileSystem
 from s3fs import S3FileSystem
@@ -45,8 +45,8 @@ year = {2019}
 _DESCRIPTION = """
 The MIMIC Chest X-ray (MIMIC-CXR) Database v2.0.0 is a large publicly available dataset of chest radiographs in DICOM format with free-text radiology reports. The dataset contains 377,110 images corresponding to 227,835 radiographic studies performed at the Beth Israel Deaconess Medical Center in Boston, MA. The dataset is de-identified to satisfy the US Health Insurance Portability and Accountability Act of 1996 (HIPAA) Safe Harbor requirements. Protected health information (PHI) has been removed. The dataset is intended to support a wide body of research in medicine including image understanding, natural language processing, and decision support.
 
-The MIMIC-CXR dataset must be downloaded separately after reading and agreeing 
-to a Research Use Agreement. To do so, please follow the instructions on the 
+The MIMIC-CXR dataset must be downloaded separately after reading and agreeing
+to a Research Use Agreement. To do so, please follow the instructions on the
 website, https://physionet.org/content/mimic-cxr/2.0.0/
 """
 
@@ -57,8 +57,12 @@ _LABELS = {
     99.0: "unmentioned",
 }
 
-MAX_TEXT_LEN = 2500
-MY_TEXT = schema.Text(max_shape=(MAX_TEXT_LEN,), dtype="uint8")
+LARGE_TEXT_LEN = 2500
+MEDIUM_TEXT_LEN = 25
+SMALL_TEXT_LEN = 8
+MY_LARGE_TEXT = schema.Text(max_shape=(LARGE_TEXT_LEN,), dtype="uint8")
+MY_MEDIUM_TEXT = schema.Text(max_shape=(MEDIUM_TEXT_LEN,), dtype="uint8")
+MY_SMALL_TEXT = schema.Text((SMALL_TEXT_LEN,), dtype="uint8")
 
 
 class MimiciiiCxr:
@@ -70,41 +74,156 @@ class MimiciiiCxr:
         MAX_IMAGE_COUNT = 30
 
         return {
-            "subject_id": MY_TEXT,
-            "study_id": MY_TEXT,
-            "study_date": MY_TEXT,
-            "study_time": MY_TEXT,
-            "report": MY_TEXT,
-            "label_chexpert": schema.Sequence(
-                shape=14, dtype=schema.ClassLabel(names=list(_LABELS.values()))
+            "subject_id": MY_SMALL_TEXT,
+            "study_id": MY_SMALL_TEXT,
+            "study_date": MY_SMALL_TEXT,
+            "study_time": MY_MEDIUM_TEXT,
+            "report": MY_LARGE_TEXT,
+            "label_chexpert": schema.ClassLabel(
+                shape=(14,), names=list(_LABELS.values())
             ),
-            "label_negbio": schema.Sequence(
-                shape=14, dtype=schema.ClassLabel(names=list(_LABELS.values()))
+            "label_negbio": schema.ClassLabel(
+                shape=(14,), names=list(_LABELS.values())
             ),
             "image": schema.Tensor(
                 shape=(None, image_size, image_size, 1),
                 max_shape=(MAX_IMAGE_COUNT, image_size, image_size, 1),
                 dtype="uint16",
             ),
-            # "dicom_id": schema.Tensor(max_shape=(MAX_IMAGE_COUNT,), dtype="object"),
-            # "columns": schema.Tensor(max_shape=(MAX_IMAGE_COUNT,), dtype="object"),
-            # "viewPosition": schema.Tensor(max_shape=(MAX_IMAGE_COUNT,), dtype="object"),
-            # "viewCodeSequence_CodeMeaning": schema.Tensor(
-            #     max_shape=(MAX_IMAGE_COUNT,), dtype="object"
-            # ),
-            # "patientOrientationCodeSequence_CodeMeaning": schema.Tensor(
-            #     max_shape=(MAX_IMAGE_COUNT,), dtype="object"
-            # ),
-            # "procedureCodeSequence_CodeMeaning": schema.Tensor(
-            #     max_shape=(MAX_IMAGE_COUNT,), dtype="object"
-            # ),
-            # "performedProcedureStepDescription": schema.Tensor(
-            #     max_shape=(MAX_IMAGE_COUNT,), dtype="object"
-            # ),
+            "dicom_id": MY_LARGE_TEXT,  # different ids not separated i.e a|b|c
+            "columns": schema.Tensor(max_shape=(MAX_IMAGE_COUNT,), dtype="int32"),
+            "rows": schema.Tensor(max_shape=(MAX_IMAGE_COUNT,), dtype="int32"),
+            "viewPosition": schema.ClassLabel(
+                shape=(None,),
+                max_shape=(MAX_IMAGE_COUNT,),
+                names=[
+                    "nan",
+                    "AP LLD",
+                    "LL",
+                    "PA RLD",
+                    "LPO",
+                    "PA",
+                    "LAO",
+                    "AP AXIAL",
+                    "XTABLE LATERAL",
+                    "RAO",
+                    "AP RLD",
+                    "SWIMMERS",
+                    "AP",
+                    "LATERAL",
+                    "PA LLD",
+                ],
+            ),
+            "viewCodeSequence_CodeMeaning": schema.ClassLabel(
+                shape=(None,),
+                max_shape=(MAX_IMAGE_COUNT,),
+                names=[
+                    "Erect",
+                    "left lateral",
+                    "lateral",
+                    "postero-anterior",
+                    "nan",
+                    "Recumbent",
+                    "left anterior oblique",
+                    "antero-posterior",
+                ],
+            ),
+            "patientOrientationCodeSequence_CodeMeaning": schema.ClassLabel(
+                shape=(None,),
+                max_shape=(MAX_IMAGE_COUNT,),
+                names=["Erect", "Recumbent", "nan"],
+            ),
+            "procedureCodeSequence_CodeMeaning": schema.ClassLabel(
+                shape=(None,),
+                max_shape=(MAX_IMAGE_COUNT,),
+                names=[
+                    "DX CHEST & RIBS",
+                    "CHEST (PORTABLE AP)",
+                    "DX CHEST PORT LINE/TUBE PLCMT 1 EXAM",
+                    "DX CHEST PORT LINE/TUBE PLCMT 2 EXAMS",
+                    "CHEST PRE-OP",
+                    "lateral",
+                    "CHEST (PA AND LAT)",
+                    "DX CHEST PORT LINE/TUBE PLCMT 3 EXAMS",
+                    "DX CHEST 2 VIEW PICC LINE PLACEMENT",
+                    "DX CHEST PORT LINE/TUBE PLCMT 5 EXAMS",
+                    "DX CHEST SGL VIEW PICC LINE PLACEMENT",
+                    "NEONATE CHEST & ABD TOGETHER PORTABLE LINE/TUBE PLCT 1 EXAM",
+                    "TRAUMA No.2 (AP CXR & PELVIS PORT)",
+                    "DX TRAUMA SERIES (PORTABLE)",
+                    "CHEST SGL VIEW/LINE PLACEMENT",
+                    "antero-posterior",
+                    "postero-anterior",
+                    "CHEST (SINGLE VIEW)",
+                    "CHEST PORT LINE PLACEMENT",
+                    "ABDOMEN (SUPINE ONLY)",
+                    "DX CHEST PORT LINE/TUBE PLCMT 4 EXAMS",
+                    "TRAUMA #3 (PORT CHEST ONLY)",
+                    "CHEST PORT LINE/TUBE PLCT 1 EXAM",
+                    "DX CHEST PORTABLE PICC LINE PLACEMENT",
+                    "CHEST (PRE-OP AP ONLY)",
+                    "DX CHEST WITH DECUB",
+                    "CHEST (PRE-OP PA & LAT)",
+                ],
+            ),
+            "performedProcedureStepDescription": schema.ClassLabel(
+                shape=(None,),
+                max_shape=(MAX_IMAGE_COUNT,),
+                names=[
+                    "CHEST SGL VIEW/LINE PLACEMENT PORT",
+                    "PORTABLE ABDOMEN",
+                    "RIB BILAT, W/AP CHEST PORT",
+                    "CHEST (SINGLE VIEW) PORT",
+                    "nan",
+                    "CHEST SGL VIEW/LINE PLACEMENT",
+                    "CHEST (PORTABLE AP) IN O.R.",
+                    "TRAUMA #2 (AP CXR AND PELVIS PORT)",
+                    "KNEE (AP, LAT AND TUNNEL) LEFT",
+                    "RIB BILAT, W/AP CHEST",
+                    "Portable Chest",
+                    "CHEST (PORTABLE AP) PORT",
+                    "CHEST (APICAL LORDOTIC ONLY) PORT",
+                    "RIB UNILAT, W/ AP CHEST LEFT",
+                    "ABDOMEN (SUPINE AND ERECT)",
+                    "TRAUMA #3 (PORT CHEST ONLY)",
+                    "RIB, UNILAT (NO CXR)",
+                    "CHEST (SINGLE VIEW)",
+                    "CHEST PORT LINE/TUBE PLCT 1 EXAM PORT",
+                    "ABD PORT LINE/TUBE PLACEMENT 1 EXAM PORT PORT",
+                    "BABYGRAM (CHEST ONLY)",
+                    "ABDOMEN (SUPINE ONLY)",
+                    "CHEST (PRE-OP PA AND LAT) PORT PORT",
+                    "DX CHEST 2 VIEW PICC LINE PLACEMENT",
+                    "ABDOMEN (SUPINE ONLY) PORT",
+                    "CHEST PORT LINE/TUBE PLCT 1 EXAM",
+                    "CHEST (PORTABLE AP)",
+                    "CHEST (PA AND LAT)",
+                    "ABDOMEN (SUPINE AND ERECT) PORT",
+                    "CHEST (PA AND LAT) PORT",
+                    "ABDOMEN (LAT DECUB ONLY) PORT LEFT",
+                    "CHEST (PA, LAT AND OBLIQUES)",
+                    "CHEST (PRE-OP PA AND LAT) PORT",
+                    "ABD PORT LINE/TUBE PLACEMENT 1 EXAM",
+                    "Performed Desc",
+                    "AP/PA SINGLE VIEW EXPIRATORY CHEST",
+                    "CHEST (BOTH OBLIQUES ONLY) PORT",
+                    "CHEST (PRE-OP PA AND LAT)",
+                    "DX CHEST PORT LINE/TUBE PLCMT 1 EXAM",
+                    "PELVIS (AP ONLY)",
+                    "CHEST (SINGLE VIEW) IN O.R.",
+                    "CHEST (PRE-OP AP ONLY)",
+                    "CHEST (LAT DECUB ONLY)",
+                    "CHEST PORT. LINE PLACEMENT",
+                    "DX CHEST PORTABLE PICC LINE PLACEMENT",
+                    "DX CHEST PORT LINE/TUBE PLCMT 3 EXAMS",
+                    "ABD PORT LINE/TUBE PLACEMENT 1 EXAM PORT",
+                    "CHEST (LAT DECUB ONLY) PORT",
+                ],
+            ),
         }
 
     def _intermitidate_schema(self):
-        return {"row": MY_TEXT}
+        return {"row": MY_LARGE_TEXT}
 
     def _build_pcollection(
         self,
@@ -224,6 +343,11 @@ class MimiciiiCxr:
             patientOrientationCodeSequence_CodeMeaning = (
                 patientOrientationCodeSequence_CodeMeaning.split("|")
             )
+
+            # removing \n
+            patientOrientationCodeSequence_CodeMeaning[
+                -1
+            ] = patientOrientationCodeSequence_CodeMeaning[-1][:-1]
             procedureCodeSequence_CodeMeaning = procedureCodeSequence_CodeMeaning.split(
                 "|"
             )
@@ -268,24 +392,54 @@ class MimiciiiCxr:
             chexpert_values = [_LABELS[v] for v in chexpert_values]
 
             images = np.array(images)
-
             return {
                 "subject_id": subject_id,
                 "study_id": study_id,
                 "study_date": StudyDate.split("|")[0],
                 "study_time": StudyTime.split("|")[0],
                 "report": fs.cat_file(basepath + ".txt").decode("utf-8"),
-                "label_chexpert": chexpert_values,
-                "label_negbio": negbio_values,
+                "label_chexpert": np.array(
+                    [
+                        schema_["label_chexpert"].str2int(item)
+                        for item in chexpert_values
+                    ]
+                ),
+                "label_negbio": np.array(
+                    [schema_["label_negbio"].str2int(item) for item in negbio_values]
+                ),
                 "image": images,
-                # "rows": rows,
-                # "columns": columns,
-                # "dicom_id": dicom_id[0],
-                # "viewPosition": ViewPosition,
-                # "viewCodeSequence_CodeMeaning": ViewCodeSequence_CodeMeaning,
-                # "patientOrientationCodeSequence_CodeMeaning": patientOrientationCodeSequence_CodeMeaning,
-                # "procedureCodeSequence_CodeMeaning": procedureCodeSequence_CodeMeaning,
-                # "performedProcedureStepDescription": performedProcedureStepDescription,
+                "rows": np.array(rows),
+                "columns": np.array(columns),
+                "dicom_id": "|".join(dicom_id),
+                "viewPosition": np.array(
+                    [schema_["viewPosition"].str2int(item) for item in ViewPosition]
+                ),
+                "viewCodeSequence_CodeMeaning": np.array(
+                    [
+                        schema_["viewCodeSequence_CodeMeaning"].str2int(item)
+                        for item in ViewCodeSequence_CodeMeaning
+                    ]
+                ),
+                "patientOrientationCodeSequence_CodeMeaning": np.array(
+                    [
+                        schema_["patientOrientationCodeSequence_CodeMeaning"].str2int(
+                            item
+                        )
+                        for item in patientOrientationCodeSequence_CodeMeaning
+                    ]
+                ),
+                "procedureCodeSequence_CodeMeaning": np.array(
+                    [
+                        schema_["procedureCodeSequence_CodeMeaning"].str2int(item)
+                        for item in procedureCodeSequence_CodeMeaning
+                    ]
+                ),
+                "performedProcedureStepDescription": np.array(
+                    [
+                        schema_["performedProcedureStepDescription"].str2int(item)
+                        for item in performedProcedureStepDescription
+                    ]
+                ),
             }
 
         result = fs.cat_file(filepath)
@@ -295,7 +449,7 @@ class MimiciiiCxr:
         schema_ = self._info()
         schemai = self._intermitidate_schema()
         print("Number of samples: ", len(lines))
-        lines = lines[:150000]
+        # lines = lines[:10]
         if args.redisurl:
             sync = RedisSynchronizer(host=args.redisurl, password="5241590000000000")
         elif args.scheduler == "processed":
@@ -334,6 +488,8 @@ class MimiciiiCxr:
 def main():
     DEFAULT_WORKERS = 100
     DEFAULT_SCHEDULER = "ray_generator"
+    # DEFAULT_WORKERS = 1
+    # DEFAULT_SCHEDULER = "single"
     if DEFAULT_SCHEDULER == "ray_generator":
         DEFAULT_REDIS_URL = (
             os.environ["RAY_HEAD_IP"] if "RAY_HEAD_IP" in os.environ else "localhost"
@@ -342,12 +498,14 @@ def main():
         DEFAULT_REDIS_URL = False
     password = "5241590000000000"
     ray.init(address="auto", _redis_password=password)
-    #print("Nodes:", ray.nodes())
+    # print("Nodes:", ray.nodes())
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-i", "--input", default="s3://snark-gradient-raw-data/mimic-cxr-2.0.0"
     )
-    parser.add_argument("-o", "--output", default="s3://snark-gradient-raw-data/outputae")
+    parser.add_argument(
+        "-o", "--output", default="s3://snark-gradient-raw-data/output_all_attributes"
+    )
     parser.add_argument("-w", "--workers", default=DEFAULT_WORKERS)
     parser.add_argument("-s", "--scheduler", default=DEFAULT_SCHEDULER)
     parser.add_argument("-r", "--redisurl", default=DEFAULT_REDIS_URL)

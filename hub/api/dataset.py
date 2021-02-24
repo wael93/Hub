@@ -537,11 +537,8 @@ class Dataset:
                 if t._dynamic_tensor is not None:
                     change_shape(t._dynamic_tensor, total)
 
-
                 self._fs_map["meta.json"] = json.dumps(self.meta).encode("utf-8")
 
-        
- 
     def append_shape(self, size: int):
         """ Append the shape: Heavy Operation """
         lock_path = f"{self._path}_append"
@@ -659,6 +656,15 @@ class Dataset:
                             cur[split_key[i]] = {}
                             cur = cur[split_key[i]]
                     cur[split_key[-1]] = _get_active_item(key, index)
+                    if isinstance(self[key].dtype, Text):
+                        value = cur[split_key[-1]]
+                        if value.ndim == 1:
+                            value = "".join(chr(it) for it in value.tolist())
+                        elif value.ndim == 2:
+                            value = [
+                                "".join(chr(it) for it in val.tolist()) for val in value
+                            ]
+                        cur[split_key[-1]] = value
                 yield (d)
 
         def dict_to_tf(my_dtype):
@@ -670,9 +676,14 @@ class Dataset:
         def tensor_to_tf(my_dtype):
             return dtype_to_tf(my_dtype.dtype)
 
+        def text_to_tf(my_dtype):
+            return "string"
+
         def dtype_to_tf(my_dtype):
             if isinstance(my_dtype, SchemaDict):
                 return dict_to_tf(my_dtype)
+            elif isinstance(my_dtype, Text):
+                return text_to_tf(my_dtype)
             elif isinstance(my_dtype, Tensor):
                 return tensor_to_tf(my_dtype)
             elif isinstance(my_dtype, Primitive):
@@ -683,6 +694,8 @@ class Dataset:
         def get_output_shapes(my_dtype):
             if isinstance(my_dtype, SchemaDict):
                 return output_shapes_from_dict(my_dtype)
+            elif isinstance(my_dtype, Text):
+                return ()
             elif isinstance(my_dtype, Tensor):
                 return my_dtype.shape
             elif isinstance(my_dtype, Primitive):

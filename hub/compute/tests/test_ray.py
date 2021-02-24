@@ -9,7 +9,7 @@ from hub.utils import ray_loaded
 from hub.schema import Tensor, Text
 import pytest
 from hub.compute.ray import empty_remote
-
+from ee.backend.synchronizer import ProcessSynchronizer
 import numpy as np
 
 dynamic_schema = {

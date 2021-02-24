@@ -4,7 +4,7 @@ This Source Code Form is subject to the terms of the Mozilla Public License, v. 
 If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
 
-from typing import List
+from typing import List, Tuple
 from hub.schema.features import Tensor
 
 
@@ -18,6 +18,8 @@ class ClassLabel(Tensor):
 
     def __init__(
         self,
+        shape: Tuple[int, ...] = (),
+        max_shape: Tuple[int, ...] = None,
         num_classes: int = None,
         names: List[str] = None,
         names_file: str = None,
@@ -62,8 +64,9 @@ class ClassLabel(Tensor):
         ValueError: If more than one argument is provided
         """
         super().__init__(
-            shape=(),
-            dtype="int64",
+            shape=shape,
+            dtype="uint16",
+            max_shape=max_shape,
             chunks=chunks,
             compressor=compressor,
         )
