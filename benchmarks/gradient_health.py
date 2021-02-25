@@ -57,7 +57,7 @@ _LABELS = {
     99.0: "unmentioned",
 }
 
-LARGE_TEXT_LEN = 2500
+LARGE_TEXT_LEN = 3500
 MEDIUM_TEXT_LEN = 25
 SMALL_TEXT_LEN = 8
 MY_LARGE_TEXT = schema.Text(max_shape=(LARGE_TEXT_LEN,), dtype="uint8")
@@ -504,7 +504,7 @@ def main():
         "-i", "--input", default="s3://snark-gradient-raw-data/mimic-cxr-2.0.0"
     )
     parser.add_argument(
-        "-o", "--output", default="s3://snark-gradient-raw-data/output_all_attributes"
+        "-o", "--output", default="s3://snark-gradient-raw-data/output_all_attributes_2"
     )
     parser.add_argument("-w", "--workers", default=DEFAULT_WORKERS)
     parser.add_argument("-s", "--scheduler", default=DEFAULT_SCHEDULER)
