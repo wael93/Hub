@@ -168,7 +168,7 @@ def main():
             model_name=base_model_name,
             use_base_weights=use_base_model_weights,
             weights_path=model_weights_file,
-            input_shape=(image_dimension, image_dimension, 3),
+            input_shape=(image_dimension, image_dimension, 1),
         )
 
         if show_model_summary:
