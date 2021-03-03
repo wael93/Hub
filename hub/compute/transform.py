@@ -18,7 +18,7 @@ from hub.api.datasetview import DatasetView
 from pathos.pools import ProcessPool, ThreadPool
 from hub.schema.sequence import Sequence
 from hub.schema.features import featurify
-import posixpath
+import os
 from hub.defaults import OBJECT_CHUNK
 
 
@@ -140,7 +140,7 @@ class Transform:
         num, ofs = slice_extract_info(slice_list[0], self.shape[0])
         ds_view = self._ds[slice_list[0]]
 
-        path = posixpath.expanduser("~/.activeloop/tmparray")
+        path = os.path.expanduser("~/.activeloop/tmparray")
         new_ds = self.store(path, length=num, ds=ds_view, progressbar=False)
 
         index = 1 if len(slice_) > 1 else 0
@@ -487,7 +487,7 @@ class Transform:
             total=length,
             unit_scale=True,
             unit=" items",
-            desc="Computing the transformation",
+            desc=f"Computing the transformation in chunks of size {n_samples}",
         ) as pbar:
             for ds_in_shard in batchify_generator(ds_in, n_samples):
                 n_results = self.store_shard(ds_in_shard, ds_out, start, token=token)
