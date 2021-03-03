@@ -221,9 +221,14 @@ def _to_tensorflow(dataset, indexes=None, include_shapes=False):
     def tensor_to_tf(my_dtype):
         return dtype_to_tf(my_dtype.dtype)
 
+    def text_to_tf(my_dtype):
+        return "string"
+
     def dtype_to_tf(my_dtype):
         if isinstance(my_dtype, SchemaDict):
             return dict_to_tf(my_dtype)
+        elif isinstance(my_dtype, Text):
+            return text_to_tf(my_dtype)
         elif isinstance(my_dtype, Tensor):
             return tensor_to_tf(my_dtype)
         elif isinstance(my_dtype, Primitive):

@@ -249,7 +249,7 @@ class DatasetView:
     def __repr__(self):
         return self.__str__()
 
-    def to_tensorflow(self, include_shapes):
+    def to_tensorflow(self, include_shapes=False):
         """|Converts the dataset into a tensorflow compatible format
 
         Parameters
