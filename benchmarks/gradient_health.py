@@ -16,12 +16,14 @@ import argparse
 import pandas as pd
 import pydicom
 import numpy as np
-import ray
+
+# import ray
 
 import hub
 from hub import schema
 from hub.utils import Timer
-from ee.backend.synchronizer import RedisSynchronizer, ProcessSynchronizer
+
+# from ee.backend.synchronizer import RedisSynchronizer, ProcessSynchronizer
 
 _CITATION = """
 @article{Johnson2019,
@@ -57,7 +59,7 @@ _LABELS = {
     99.0: "unmentioned",
 }
 
-LARGE_TEXT_LEN = 3500
+LARGE_TEXT_LEN = 5000
 MEDIUM_TEXT_LEN = 25
 SMALL_TEXT_LEN = 8
 MY_LARGE_TEXT = schema.Text(max_shape=(LARGE_TEXT_LEN,), dtype="uint8")
@@ -88,7 +90,7 @@ class MimiciiiCxr:
             "image": schema.Tensor(
                 shape=(None, image_size, image_size, 1),
                 max_shape=(MAX_IMAGE_COUNT, image_size, image_size, 1),
-                dtype="uint16",
+                dtype="uint8",
             ),
             "dicom_id": MY_LARGE_TEXT,  # different ids not separated i.e a|b|c
             "columns": schema.Tensor(max_shape=(MAX_IMAGE_COUNT,), dtype="int32"),
@@ -449,7 +451,7 @@ class MimiciiiCxr:
         schema_ = self._info()
         schemai = self._intermitidate_schema()
         print("Number of samples: ", len(lines))
-        # lines = lines[:10]
+        lines = lines[:10]
         if args.redisurl:
             sync = RedisSynchronizer(host=args.redisurl, password="5241590000000000")
         elif args.scheduler == "processed":
@@ -486,10 +488,10 @@ class MimiciiiCxr:
 
 
 def main():
-    DEFAULT_WORKERS = 100
-    DEFAULT_SCHEDULER = "ray_generator"
-    # DEFAULT_WORKERS = 1
-    # DEFAULT_SCHEDULER = "single"
+    # DEFAULT_WORKERS = 100
+    # DEFAULT_SCHEDULER = "ray_generator"
+    DEFAULT_WORKERS = 1
+    DEFAULT_SCHEDULER = "single"
     if DEFAULT_SCHEDULER == "ray_generator":
         DEFAULT_REDIS_URL = (
             os.environ["RAY_HEAD_IP"] if "RAY_HEAD_IP" in os.environ else "localhost"
@@ -497,14 +499,16 @@ def main():
     else:
         DEFAULT_REDIS_URL = False
     password = "5241590000000000"
-    ray.init(address="auto", _redis_password=password)
+    # ray.init(address="auto", _redis_password=password)
     # print("Nodes:", ray.nodes())
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "-i", "--input", default="s3://snark-gradient-raw-data/mimic-cxr-2.0.0"
     )
     parser.add_argument(
-        "-o", "--output", default="s3://snark-gradient-raw-data/output_all_attributes_2"
+        "-o",
+        "--output",
+        default="s3://snark-gradient-raw-data/output_all_attributes_10_samples",
     )
     parser.add_argument("-w", "--workers", default=DEFAULT_WORKERS)
     parser.add_argument("-s", "--scheduler", default=DEFAULT_SCHEDULER)

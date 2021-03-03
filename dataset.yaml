@@ -1,5 +1,5 @@
 # An unique identifier for the head node and workers of this cluster.
-cluster_name: default_shashank
+cluster_name: default_abhinav_ge
 
 # The minimum number of workers nodes to launch in addition to the head
 # node. This number should be >= 0.
@@ -124,6 +124,7 @@ setup_commands:
     - pip3 install pydicom
     - pip3 install pandas
     - pip3 install python-redis-lock
+    - apt-get install tmux
     # Note: if you're developing Ray, you probably want to create a Docker image that
     # has your Ray repo pre-cloned. Then, you can replace the pip installs
     # below with a git checkout <your_sha> (and possibly a recompile).
