@@ -15,7 +15,7 @@ from weights import get_class_weights
 from augmenter import augmenter
 import tensorflow as tf
 import hub
-
+import numpy as np
 
 def only_frontal(sample):
     viewPosition = sample["viewPosition"].compute(True)
@@ -25,7 +25,7 @@ def only_frontal(sample):
 def get_image(viewPosition, images):
     for i, vp in enumerate(viewPosition):
         if vp in [5, 12]:
-            return images[i]
+            return np.concatenate((images[i], images[i], images[i]), axis=2)
 
 
 def to_model_fit(sample):
@@ -102,12 +102,13 @@ def main():
         # datasets = ["train", "dev", "test"]
         # for dataset in datasets:
         #     shutil.copy(os.path.join(dataset_csv_dir, f"{dataset}.csv"), output_dir)
-
-        ds = hub.Dataset("s3://snark-gradient-raw-data/output_all_attributes_2/ds3")
-        dsv_train = ds[0:1500]
-        dsv_val = ds[1500:1864]
+        # 63539
+        ds = hub.Dataset("s3://snark-gradient-raw-data/output_ray_single_8_100k_2/ds3/")
+        dsv_train = ds[0:10000]
+        dsv_val = ds[10000:10100]
         dsf_train = dsv_train.filter(only_frontal)
         dsf_val = dsv_val.filter(only_frontal)
+        print("filtering completed")
         # get train/dev sample counts
         train_counts, train_pos_counts = get_sample_counts(dsf_train, class_names)
         dev_counts, _ = get_sample_counts(dsf_val, class_names)
@@ -168,7 +169,7 @@ def main():
             model_name=base_model_name,
             use_base_weights=use_base_model_weights,
             weights_path=model_weights_file,
-            input_shape=(image_dimension, image_dimension, 1),
+            input_shape=(image_dimension, image_dimension, 3),
         )
 
         if show_model_summary:
@@ -199,8 +200,10 @@ def main():
 
         tds_train = dsf_train.to_tensorflow()
         tds_train = tds_train.map(to_model_fit)
+        tds_train = tds_train.batch(batch_size).prefetch(tf.data.AUTOTUNE)
         tds_val = dsf_val.to_tensorflow()
         tds_val = tds_val.map(to_model_fit)
+        tds_val = tds_val.batch(batch_size).prefetch(tf.data.AUTOTUNE)
         print(f"Train data length: {len(dsf_train)}")
         print(f"Val data length: {len(dsf_val)}")
 
@@ -249,7 +252,7 @@ def main():
                 mode="min",
                 min_lr=min_lr,
             ),
-            auroc,
+            # auroc,
         ]
 
         print("** start training **")

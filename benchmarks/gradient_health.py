@@ -451,7 +451,7 @@ class MimiciiiCxr:
         schema_ = self._info()
         schemai = self._intermitidate_schema()
         print("Number of samples: ", len(lines))
-        lines = lines[:10]
+        lines = lines[:2500]
         if args.redisurl:
             sync = RedisSynchronizer(host=args.redisurl, password="5241590000000000")
         elif args.scheduler == "processed":
@@ -474,7 +474,7 @@ class MimiciiiCxr:
                     workers=args.workers,
                     synchronizer=sync,
                 )(_check_files)(ds1)
-                ds2 = ds2.store(f"{output_dir}/ds2")
+                ds2 = ds2.store(f"{output_dir}/ds2", sample_per_shard=400)
                 print("LEN:", len(ds2))
             with Timer("Time of third transform"):
                 ds3 = hub.transform(
@@ -483,14 +483,14 @@ class MimiciiiCxr:
                     workers=args.workers,
                     synchronizer=sync,
                 )(_process_example)(ds2)
-                ds3.store(f"{output_dir}/ds3")
+                ds3.store(f"{output_dir}/ds3", sample_per_shard=400)
         print("Success, number of elements for phase 3:", len(ds2))
 
 
 def main():
     # DEFAULT_WORKERS = 100
     # DEFAULT_SCHEDULER = "ray_generator"
-    DEFAULT_WORKERS = 1
+    DEFAULT_WORKERS = 8
     DEFAULT_SCHEDULER = "single"
     if DEFAULT_SCHEDULER == "ray_generator":
         DEFAULT_REDIS_URL = (
@@ -508,7 +508,7 @@ def main():
     parser.add_argument(
         "-o",
         "--output",
-        default="s3://snark-gradient-raw-data/output_all_attributes_10_samples",
+        default="s3://snark-gradient-raw-data/output_all_attributes_2500_samples_300_chunk",
     )
     parser.add_argument("-w", "--workers", default=DEFAULT_WORKERS)
     parser.add_argument("-s", "--scheduler", default=DEFAULT_SCHEDULER)
