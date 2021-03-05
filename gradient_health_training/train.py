@@ -104,8 +104,8 @@ def main():
         #     shutil.copy(os.path.join(dataset_csv_dir, f"{dataset}.csv"), output_dir)
         # 63539
         ds = hub.Dataset("s3://snark-gradient-raw-data/output_ray_single_8_100k_2/ds3/")
-        dsv_train = ds[0:10000]
-        dsv_val = ds[10000:10100]
+        dsv_train = ds[0:2000]
+        dsv_val = ds[10000:11000]
         dsf_train = dsv_train.filter(only_frontal)
         dsf_val = dsv_val.filter(only_frontal)
         print("filtering completed")
@@ -198,10 +198,10 @@ def main():
 
         # 1864 elements
 
-        tds_train = dsf_train.to_tensorflow()
+        tds_train = dsf_train.to_tensorflow(repeat=True)
         tds_train = tds_train.map(to_model_fit)
         tds_train = tds_train.batch(batch_size).prefetch(tf.data.AUTOTUNE)
-        tds_val = dsf_val.to_tensorflow()
+        tds_val = dsf_val.to_tensorflow(repeat=True)
         tds_val = tds_val.map(to_model_fit)
         tds_val = tds_val.batch(batch_size).prefetch(tf.data.AUTOTUNE)
         print(f"Train data length: {len(dsf_train)}")
