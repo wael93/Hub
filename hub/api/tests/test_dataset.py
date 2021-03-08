@@ -554,7 +554,7 @@ def test_append_dataset():
     assert ds["first"].shape[0] == 120
     assert ds["first", 5:10].shape[0] == 5
     assert ds["second"].shape[0] == 120
-    ds.commit()
+    ds.flush()
 
     ds = Dataset(url)
     assert ds["first"].shape[0] == 120

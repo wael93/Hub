@@ -17,13 +17,13 @@ import pandas as pd
 import pydicom
 import numpy as np
 
-# import ray
+import ray
 
 import hub
 from hub import schema
 from hub.utils import Timer
 
-# from ee.backend.synchronizer import RedisSynchronizer, ProcessSynchronizer
+from ee.backend.synchronizer import RedisSynchronizer, ProcessSynchronizer
 
 _CITATION = """
 @article{Johnson2019,
@@ -259,20 +259,24 @@ class MimiciiiCxr:
         negbio_df = negbio_df.fillna(99.0)
 
         def _check_files(row):
-            row = row["row"]
-            (
-                study_id,
-                subject_id,
-                split,
-                dicom_id,
-                performedProcedureStepDescription,
-                ViewPosition,
-                StudyDate,
-                StudyTime,
-                procedureCodeSequence_CodeMeaning,
-                ViewCodeSequence_CodeMeaning,
-                patientOrientationCodeSequence_CodeMeaning,
-            ) = row.split(",")
+            try:
+                row = row["row"]
+                (
+                    study_id,
+                    subject_id,
+                    split,
+                    dicom_id,
+                    performedProcedureStepDescription,
+                    ViewPosition,
+                    StudyDate,
+                    StudyTime,
+                    procedureCodeSequence_CodeMeaning,
+                    ViewCodeSequence_CodeMeaning,
+                    patientOrientationCodeSequence_CodeMeaning,
+                ) = row.split(",")
+            except:
+                print("##########", len(row.split(",")), row)
+                return []
             basepath = "{}/files/p{}/p{}/s{}".format(
                 manual_dir, subject_id[0:2], subject_id, study_id
             )
@@ -394,55 +398,61 @@ class MimiciiiCxr:
             chexpert_values = [_LABELS[v] for v in chexpert_values]
 
             images = np.array(images)
-            return {
-                "subject_id": subject_id,
-                "study_id": study_id,
-                "study_date": StudyDate.split("|")[0],
-                "study_time": StudyTime.split("|")[0],
-                "report": fs.cat_file(basepath + ".txt").decode("utf-8"),
-                "label_chexpert": np.array(
-                    [
-                        schema_["label_chexpert"].str2int(item)
-                        for item in chexpert_values
-                    ]
-                ),
-                "label_negbio": np.array(
-                    [schema_["label_negbio"].str2int(item) for item in negbio_values]
-                ),
-                "image": images,
-                "rows": np.array(rows),
-                "columns": np.array(columns),
-                "dicom_id": "|".join(dicom_id),
-                "viewPosition": np.array(
-                    [schema_["viewPosition"].str2int(item) for item in ViewPosition]
-                ),
-                "viewCodeSequence_CodeMeaning": np.array(
-                    [
-                        schema_["viewCodeSequence_CodeMeaning"].str2int(item)
-                        for item in ViewCodeSequence_CodeMeaning
-                    ]
-                ),
-                "patientOrientationCodeSequence_CodeMeaning": np.array(
-                    [
-                        schema_["patientOrientationCodeSequence_CodeMeaning"].str2int(
-                            item
-                        )
-                        for item in patientOrientationCodeSequence_CodeMeaning
-                    ]
-                ),
-                "procedureCodeSequence_CodeMeaning": np.array(
-                    [
-                        schema_["procedureCodeSequence_CodeMeaning"].str2int(item)
-                        for item in procedureCodeSequence_CodeMeaning
-                    ]
-                ),
-                "performedProcedureStepDescription": np.array(
-                    [
-                        schema_["performedProcedureStepDescription"].str2int(item)
-                        for item in performedProcedureStepDescription
-                    ]
-                ),
-            }
+            try:
+                return {
+                    "subject_id": subject_id,
+                    "study_id": study_id,
+                    "study_date": StudyDate.split("|")[0],
+                    "study_time": StudyTime.split("|")[0],
+                    "report": fs.cat_file(basepath + ".txt").decode("utf-8"),
+                    "label_chexpert": np.array(
+                        [
+                            schema_["label_chexpert"].str2int(item)
+                            for item in chexpert_values
+                        ]
+                    ),
+                    "label_negbio": np.array(
+                        [
+                            schema_["label_negbio"].str2int(item)
+                            for item in negbio_values
+                        ]
+                    ),
+                    "image": images,
+                    "rows": np.array(rows),
+                    "columns": np.array(columns),
+                    "dicom_id": "|".join(dicom_id),
+                    "viewPosition": np.array(
+                        [schema_["viewPosition"].str2int(item) for item in ViewPosition]
+                    ),
+                    "viewCodeSequence_CodeMeaning": np.array(
+                        [
+                            schema_["viewCodeSequence_CodeMeaning"].str2int(item)
+                            for item in ViewCodeSequence_CodeMeaning
+                        ]
+                    ),
+                    "patientOrientationCodeSequence_CodeMeaning": np.array(
+                        [
+                            schema_[
+                                "patientOrientationCodeSequence_CodeMeaning"
+                            ].str2int(item)
+                            for item in patientOrientationCodeSequence_CodeMeaning
+                        ]
+                    ),
+                    "procedureCodeSequence_CodeMeaning": np.array(
+                        [
+                            schema_["procedureCodeSequence_CodeMeaning"].str2int(item)
+                            for item in procedureCodeSequence_CodeMeaning
+                        ]
+                    ),
+                    "performedProcedureStepDescription": np.array(
+                        [
+                            schema_["performedProcedureStepDescription"].str2int(item)
+                            for item in performedProcedureStepDescription
+                        ]
+                    ),
+                }
+            except:
+                return []
 
         result = fs.cat_file(filepath)
         with BytesIO(result) as f:
@@ -451,7 +461,7 @@ class MimiciiiCxr:
         schema_ = self._info()
         schemai = self._intermitidate_schema()
         print("Number of samples: ", len(lines))
-        lines = lines[:10]
+        # lines = lines[:2500]
         if args.redisurl:
             sync = RedisSynchronizer(host=args.redisurl, password="5241590000000000")
         elif args.scheduler == "processed":
@@ -467,6 +477,7 @@ class MimiciiiCxr:
                     synchronizer=sync,
                 )(_right_size)(lines)
                 ds1 = ds1.store(f"{output_dir}/ds1")
+                print("LEN DS1:", len(ds1))
             with Timer("Time of second transform"):
                 ds2 = hub.transform(
                     schemai,
@@ -474,8 +485,8 @@ class MimiciiiCxr:
                     workers=args.workers,
                     synchronizer=sync,
                 )(_check_files)(ds1)
-                ds2 = ds2.store(f"{output_dir}/ds2")
-                print("LEN:", len(ds2))
+                ds2 = ds2.store(f"{output_dir}/ds2", sample_per_shard=400)
+                print("LEN DS2:", len(ds2))
             with Timer("Time of third transform"):
                 ds3 = hub.transform(
                     schema_,
@@ -483,14 +494,14 @@ class MimiciiiCxr:
                     workers=args.workers,
                     synchronizer=sync,
                 )(_process_example)(ds2)
-                ds3.store(f"{output_dir}/ds3")
+                ds3.store(f"{output_dir}/ds3", sample_per_shard=400)
         print("Success, number of elements for phase 3:", len(ds2))
 
 
 def main():
     # DEFAULT_WORKERS = 100
     # DEFAULT_SCHEDULER = "ray_generator"
-    DEFAULT_WORKERS = 1
+    DEFAULT_WORKERS = 8
     DEFAULT_SCHEDULER = "single"
     if DEFAULT_SCHEDULER == "ray_generator":
         DEFAULT_REDIS_URL = (
@@ -505,10 +516,11 @@ def main():
     parser.add_argument(
         "-i", "--input", default="s3://snark-gradient-raw-data/mimic-cxr-2.0.0"
     )
+    # 146029
     parser.add_argument(
         "-o",
         "--output",
-        default="s3://snark-gradient-raw-data/output_all_attributes_10_samples",
+        default="s3://snark-gradient-raw-data/output_ray_single_8_full_dataset",
     )
     parser.add_argument("-w", "--workers", default=DEFAULT_WORKERS)
     parser.add_argument("-s", "--scheduler", default=DEFAULT_SCHEDULER)

@@ -295,6 +295,10 @@ class DatasetView:
         """Commit dataset"""
         self.dataset.commit()
 
+    def flush(self) -> None:
+        """Flush dataset"""
+        self.dataset.flush()
+
     def numpy(self, label_name=False):
         """Gets the value from different tensorview objects in the datasetview schema
 
