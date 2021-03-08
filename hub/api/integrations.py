@@ -143,7 +143,7 @@ def _from_pytorch(dataset, scheduler: str = "single", workers: int = 1):
     return my_transform(dataset)
 
 
-def _to_tensorflow(dataset, indexes=None, include_shapes=False):
+def _to_tensorflow(dataset, indexes=None, include_shapes=False, repeat=False):
     """| Converts the dataset into a tensorflow compatible format
 
     Parameters
@@ -186,31 +186,34 @@ def _to_tensorflow(dataset, indexes=None, include_shapes=False):
 
     def tf_gen():
         key_dtype_map = {}
-        for index in indexes:
-            d = {}
-            for key in dataset.keys:
-                key_dtype_map[key] = (
-                    key_dtype_map.get(key) or dataset[key, indexes[0]].dtype
-                )
-                split_key = key.split("/")
-                cur = d
-                for i in range(1, len(split_key) - 1):
-                    if split_key[i] in cur.keys():
-                        cur = cur[split_key[i]]
-                    else:
-                        cur[split_key[i]] = {}
-                        cur = cur[split_key[i]]
-                cur[split_key[-1]] = _get_active_item(key, index)
-                if isinstance(key_dtype_map[key], Text):
-                    value = cur[split_key[-1]]
-                    if value.ndim == 1:
-                        value = "".join(chr(it) for it in value.tolist())
-                    elif value.ndim == 2:
-                        value = [
-                            "".join(chr(it) for it in val.tolist()) for val in value
-                        ]
-                    cur[split_key[-1]] = value
-            yield (d)
+        while (1):
+            for index in indexes:
+                d = {}
+                for key in dataset.keys:
+                    key_dtype_map[key] = (
+                        key_dtype_map.get(key) or dataset[key, indexes[0]].dtype
+                    )
+                    split_key = key.split("/")
+                    cur = d
+                    for i in range(1, len(split_key) - 1):
+                        if split_key[i] in cur.keys():
+                            cur = cur[split_key[i]]
+                        else:
+                            cur[split_key[i]] = {}
+                            cur = cur[split_key[i]]
+                    cur[split_key[-1]] = _get_active_item(key, index)
+                    if isinstance(key_dtype_map[key], Text):
+                        value = cur[split_key[-1]]
+                        if value.ndim == 1:
+                            value = "".join(chr(it) for it in value.tolist())
+                        elif value.ndim == 2:
+                            value = [
+                                "".join(chr(it) for it in val.tolist()) for val in value
+                            ]
+                        cur[split_key[-1]] = value
+                yield (d)
+            if not repeat:
+                break
 
     def dict_to_tf(my_dtype):
         d = {}
